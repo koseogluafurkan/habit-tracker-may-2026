@@ -223,7 +223,7 @@ export async function getMonthConfig(year: number, month: number): Promise<Month
 export async function upsertMonthConfig(
   year: number,
   month: number,
-  data: { nextMonthIdeas?: string | null; reminderMessage?: string | null }
+  data: { nextMonthIdeas?: string | null; reminderMessage?: string | null; hyperFocus?: string | null }
 ): Promise<MonthConfig> {
   const existing = await getMonthConfig(year, month);
   if (existing) {
@@ -241,6 +241,7 @@ export async function upsertMonthConfig(
     month,
     nextMonthIdeas: data.nextMonthIdeas ?? null,
     reminderMessage: data.reminderMessage ?? null,
+    hyperFocus: data.hyperFocus ?? null,
   };
   await updateSnapshot((s) => ({ ...s, monthConfig: [...s.monthConfig, config] }));
   return config;

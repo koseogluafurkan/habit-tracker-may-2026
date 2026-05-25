@@ -1,28 +1,30 @@
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
 
-import { JournalTheme } from '@/constants/theme';
+import { FONT_MONO } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useTabBarStyle } from '@/hooks/useBottomPadding';
 
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
+function TabIcon({ label, focused, accent, faded }: { label: string; focused: boolean; accent: string; faded: string }) {
   return (
-    <Text style={{ fontSize: 16, opacity: focused ? 1 : 0.55, color: focused ? JournalTheme.accent : JournalTheme.textMuted }}>
+    <Text style={{ fontSize: 16, opacity: focused ? 1 : 0.55, color: focused ? accent : faded }}>
       {label}
     </Text>
   );
 }
 
 export default function TabLayout() {
+  const t = useTheme();
   const tabBarStyle = useTabBarStyle();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: JournalTheme.accent,
-        tabBarInactiveTintColor: JournalTheme.textMuted,
+        tabBarActiveTintColor: t.accent,
+        tabBarInactiveTintColor: t.faded,
         tabBarStyle: {
-          backgroundColor: JournalTheme.background,
-          borderTopColor: JournalTheme.border,
+          backgroundColor: t.paper,
+          borderTopColor: t.rule,
           borderTopWidth: 1,
           ...tabBarStyle,
         },
@@ -31,8 +33,9 @@ export default function TabLayout() {
           paddingBottom: 2,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: 10,
+          fontFamily: FONT_MONO,
+          letterSpacing: 1.5,
           marginBottom: 0,
           lineHeight: 14,
         },
@@ -44,29 +47,29 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Daily',
-          tabBarIcon: ({ focused }) => <TabIcon label="☀" focused={focused} />,
+          title: 'DAILY',
+          tabBarIcon: ({ focused }) => <TabIcon label="☀" focused={focused} accent={t.accent} faded={t.faded} />,
         }}
       />
       <Tabs.Screen
         name="journal"
         options={{
-          title: 'Month',
-          tabBarIcon: ({ focused }) => <TabIcon label="📖" focused={focused} />,
+          title: 'MONTH',
+          tabBarIcon: ({ focused }) => <TabIcon label="📖" focused={focused} accent={t.accent} faded={t.faded} />,
         }}
       />
       <Tabs.Screen
         name="graphs"
         options={{
-          title: 'Graphs',
-          tabBarIcon: ({ focused }) => <TabIcon label="📈" focused={focused} />,
+          title: 'GRAPHS',
+          tabBarIcon: ({ focused }) => <TabIcon label="📈" focused={focused} accent={t.accent} faded={t.faded} />,
         }}
       />
       <Tabs.Screen
         name="setup"
         options={{
-          title: 'Setup',
-          tabBarIcon: ({ focused }) => <TabIcon label="⚙" focused={focused} />,
+          title: 'SETUP',
+          tabBarIcon: ({ focused }) => <TabIcon label="⚙" focused={focused} accent={t.accent} faded={t.faded} />,
         }}
       />
     </Tabs>

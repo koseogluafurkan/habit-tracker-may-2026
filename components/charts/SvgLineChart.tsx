@@ -1,7 +1,7 @@
 import { Platform, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 
-import { JournalTheme } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export type ChartPoint = {
   value: number;
@@ -32,6 +32,7 @@ export function SvgLineChart({
   maxY = 100,
   yLabels,
 }: SvgLineChartProps) {
+  const t = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const width = widthProp ?? Math.min(windowWidth - 48, 900);
   const chartW = width - PADDING.left - PADDING.right;
@@ -67,7 +68,7 @@ export function SvgLineChart({
             y1={y}
             x2={width - PADDING.right}
             y2={y}
-            stroke={JournalTheme.gridLine}
+            stroke={t.rule}
             strokeWidth={0.5}
           />
         );
@@ -107,7 +108,7 @@ export function SvgLineChart({
           x={toX(i, series[0].points.length)}
           y={height - 8}
           fontSize={9}
-          fill={JournalTheme.textMuted}
+          fill={t.faded}
           textAnchor="middle"
           {...(Platform.OS === 'web' ? {} : {})}>
           {p.label}
@@ -120,7 +121,7 @@ export function SvgLineChart({
           x={4}
           y={PADDING.top + chartH - (i / Math.max(defaultYLabels.length - 1, 1)) * chartH + 3}
           fontSize={9}
-          fill={JournalTheme.textMuted}>
+          fill={t.faded}>
           {label}
         </SvgText>
       ))}

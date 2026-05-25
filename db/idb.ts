@@ -71,6 +71,11 @@ async function readSnapshot(): Promise<DatabaseSnapshot> {
           ...entry,
           dayReminder: entry.dayReminder ?? null,
         })),
+        // migrate older snapshots that may lack hyperFocus
+        monthConfig: raw.monthConfig.map((c) => ({
+          ...c,
+          hyperFocus: (c as any).hyperFocus ?? null,
+        })),
       };
       resolve(memoryCache);
     };

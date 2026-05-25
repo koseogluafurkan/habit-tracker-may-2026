@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { JournalTheme } from '@/constants/theme';
+import { FONT_BODY, FONT_HEADING } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 type NumericInputModalProps = {
   visible: boolean;
@@ -18,6 +19,7 @@ export function NumericInputModal({
   onCancel,
   onSave,
 }: NumericInputModalProps) {
+  const t = useTheme();
   const [value, setValue] = useState(initialValue);
 
   useEffect(() => {
@@ -29,23 +31,23 @@ export function NumericInputModal({
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onCancel}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <Text style={styles.title}>{title}</Text>
+        <View style={[styles.sheet, { backgroundColor: t.paper, borderColor: t.rule }]}>
+          <Text style={[styles.title, { fontFamily: FONT_HEADING, color: t.ink.black }]}>{title}</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { borderColor: t.rule, color: t.ink.black, backgroundColor: t.paperDeep, fontFamily: FONT_BODY }]}
             value={value}
             onChangeText={setValue}
             keyboardType="decimal-pad"
             placeholder="Enter value"
-            placeholderTextColor={JournalTheme.textMuted}
+            placeholderTextColor={t.faded}
             autoFocus={Platform.OS === 'web'}
           />
           <View style={styles.actions}>
             <Pressable style={styles.cancelBtn} onPress={onCancel}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={[styles.cancelText, { fontFamily: FONT_BODY, color: t.faded }]}>Cancel</Text>
             </Pressable>
-            <Pressable style={styles.saveBtn} onPress={() => onSave(value)}>
-              <Text style={styles.saveText}>Save</Text>
+            <Pressable style={[styles.saveBtn, { backgroundColor: t.ink.black }]} onPress={() => onSave(value)}>
+              <Text style={[styles.saveText, { fontFamily: FONT_BODY, color: t.paper }]}>Save</Text>
             </Pressable>
           </View>
         </View>
@@ -62,9 +64,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   sheet: {
-    backgroundColor: '#FFFDF9',
     borderWidth: 1,
-    borderColor: JournalTheme.border,
     padding: 20,
     maxWidth: 420,
     width: '100%',
@@ -72,18 +72,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontFamily: 'Georgia',
-    color: JournalTheme.text,
     marginBottom: 12,
   },
   input: {
     borderWidth: 1,
-    borderColor: JournalTheme.border,
     padding: 12,
     fontSize: 18,
-    color: JournalTheme.text,
     marginBottom: 16,
-    backgroundColor: JournalTheme.background,
   },
   actions: {
     flexDirection: 'row',
@@ -95,16 +90,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   cancelText: {
-    color: JournalTheme.textMuted,
     fontSize: 16,
   },
   saveBtn: {
-    backgroundColor: JournalTheme.accent,
     paddingVertical: 10,
     paddingHorizontal: 20,
   },
   saveText: {
-    color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
   },

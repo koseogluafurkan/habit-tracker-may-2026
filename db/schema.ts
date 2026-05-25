@@ -50,4 +50,5 @@ export type MonthConfig = {
   month: number;
   nextMonthIdeas: string | null;
   reminderMessage: string | null;
+  hyperFocus: string | null;
 };

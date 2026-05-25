@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { JournalTheme } from '@/constants/theme';
+import { FONT_BODY, FONT_MONO } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { DayEntry } from '@/db/schema';
 import { getDaysInMonthCount } from '@/utils/dates';
 
@@ -21,6 +22,7 @@ export function MemorableMoments({
   onDayPress,
   readOnly,
 }: MemorableMomentsProps) {
+  const t = useTheme();
   const daysCount = getDaysInMonthCount(year, month);
 
   const getMoment = (day: number) => {
@@ -30,25 +32,29 @@ export function MemorableMoments({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Memorable Moments</Text>
-      <Text style={styles.hint}>Tap a day number to open its full journal entry.</Text>
       {Array.from({ length: daysCount }, (_, i) => i + 1).map((day) => (
-        <View key={day} style={styles.row}>
+        <View key={day} style={[styles.row, { borderBottomColor: t.rule }]}>
           <Pressable
             onPress={() => onDayPress?.(day)}
             disabled={!onDayPress}
             style={styles.dayBtn}>
-            <Text style={[styles.dayLabel, onDayPress && styles.dayLabelLink]}>{day}</Text>
+            <Text style={[
+              styles.dayLabel,
+              { fontFamily: FONT_MONO, color: onDayPress ? t.accent : t.faded },
+              onDayPress && { fontWeight: '700' },
+            ]}>
+              {day}
+            </Text>
           </Pressable>
           {readOnly ? (
-            <Text style={styles.momentText} numberOfLines={1}>
+            <Text style={[styles.momentText, { fontFamily: FONT_BODY, color: t.ink.black }]} numberOfLines={1}>
               {getMoment(day) || '—'}
             </Text>
           ) : (
             <TextInput
-              style={styles.input}
+              style={[styles.input, { fontFamily: FONT_BODY, color: t.ink.black }]}
               placeholder="One win from this day..."
-              placeholderTextColor={JournalTheme.textMuted}
+              placeholderTextColor={t.faded}
               value={getMoment(day)}
               onChangeText={(text) => onEdit?.(day, text)}
             />
@@ -62,27 +68,13 @@ export function MemorableMoments({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 8,
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: JournalTheme.text,
-    marginBottom: 4,
-    fontFamily: 'Georgia',
-  },
-  hint: {
-    fontSize: 11,
-    color: JournalTheme.textMuted,
-    fontStyle: 'italic',
-    marginBottom: 12,
+    paddingTop: 4,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 30,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: JournalTheme.gridLine,
   },
   dayBtn: {
     width: 28,
@@ -90,24 +82,16 @@ const styles = StyleSheet.create({
   },
   dayLabel: {
     fontSize: 11,
-    fontFamily: 'SpaceMono',
-    color: JournalTheme.textMuted,
-  },
-  dayLabelLink: {
-    color: JournalTheme.accent,
-    fontWeight: '700',
   },
   input: {
     flex: 1,
     fontSize: 12,
-    color: JournalTheme.text,
     paddingVertical: 4,
-    fontFamily: 'Georgia',
+    lineHeight: 20,
   },
   momentText: {
     flex: 1,
     fontSize: 12,
-    color: JournalTheme.text,
-    fontFamily: 'Georgia',
+    lineHeight: 20,
   },
 });

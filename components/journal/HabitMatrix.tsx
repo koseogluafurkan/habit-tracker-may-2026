@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { JournalTheme, getPenColor } from '@/constants/theme';
+import { FONT_MONO, getPenColor } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { Habit, HabitLog } from '@/db/schema';
 import { getDaysInMonthCount } from '@/utils/dates';
 
@@ -16,6 +17,7 @@ type HabitMatrixProps = {
 };
 
 export function HabitMatrix({ year, month, habits, habitLogs, onCellPress, readOnly }: HabitMatrixProps) {
+  const t = useTheme();
   const daysCount = getDaysInMonthCount(year, month);
   const days = Array.from({ length: daysCount }, (_, i) => i + 1);
 
@@ -27,7 +29,9 @@ export function HabitMatrix({ year, month, habits, habitLogs, onCellPress, readO
   if (habits.length === 0) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyText}>Add habits in Setup to build your matrix.</Text>
+        <Text style={[styles.emptyText, { fontFamily: FONT_MONO, color: t.faded }]}>
+          Add habits in Setup to build your matrix.
+        </Text>
       </View>
     );
   }
@@ -40,7 +44,7 @@ export function HabitMatrix({ year, month, habits, habitLogs, onCellPress, readO
           {habits.map((habit) => (
             <View key={habit.id} style={styles.habitHeader}>
               <Text
-                style={[styles.habitLabel, { color: getPenColor(habit.color as 'black' | 'blue' | 'red') }]}
+                style={[styles.habitLabel, { fontFamily: FONT_MONO, color: getPenColor(habit.color as 'black' | 'blue' | 'red') }]}
                 numberOfLines={2}>
                 {habit.name}
               </Text>
@@ -49,7 +53,7 @@ export function HabitMatrix({ year, month, habits, habitLogs, onCellPress, readO
         </View>
         {days.map((day) => (
           <View key={day} style={styles.row}>
-            <Text style={styles.dayNum}>{day}</Text>
+            <Text style={[styles.dayNum, { fontFamily: FONT_MONO, color: t.faded }]}>{day}</Text>
             {habits.map((habit) => (
               <HabitCell
                 key={`${day}-${habit.id}`}
@@ -73,7 +77,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    color: JournalTheme.textMuted,
     fontStyle: 'italic',
   },
   headerRow: {
@@ -105,8 +108,6 @@ const styles = StyleSheet.create({
   dayNum: {
     width: 28,
     fontSize: 11,
-    fontFamily: 'SpaceMono',
-    color: JournalTheme.textMuted,
     textAlign: 'right',
     paddingRight: 4,
   },

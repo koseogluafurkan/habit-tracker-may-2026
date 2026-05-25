@@ -1,21 +1,19 @@
 import { useCallback, useState } from 'react';
 import {
-  Dimensions,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { format } from 'date-fns';
 
 import { NumericInputModal } from '@/components/NumericInputModal';
-import { GridBackground } from '@/components/journal/GridBackground';
 import { HabitMatrix } from '@/components/journal/HabitMatrix';
 import { MemorableMoments } from '@/components/journal/MemorableMoments';
-import { JournalTheme } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useDaySelection } from '@/contexts/DaySelectionContext';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import {
@@ -27,26 +25,33 @@ import {
 import type { Habit } from '@/db/schema';
 import { useBottomPadding } from '@/hooks/useBottomPadding';
 import { useMonthData } from '@/hooks/useMonthData';
-import { formatMonthYear, getDateForDay, shiftMonth } from '@/utils/dates';
+import { useResponsive } from '@/hooks/useResponsive';
+import { getDateForDay, shiftMonth } from '@/utils/dates';
+import { FONT_BODY, FONT_HEADING, FONT_MONO } from '@/constants/theme';
+import { DoubleRule } from '@/components/journal/atoms/DoubleRule';
+import { GridOverlay } from '@/components/journal/atoms/GridOverlay';
 
 export default function JournalScreen() {
+  const t = useTheme();
   const insets = useSafeAreaInsets();
   const bottomPadding = useBottomPadding();
   const { goToDate } = useDaySelection();
-  const { width } = useWindowDimensions();
+  const { columns } = useResponsive();
   const { refresh } = useDatabase();
+
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
+  const [year, setYear]   = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [view, setView] = useState<'spread' | 'matrix'>('spread');
+  const [view, setView]   = useState<'moments' | 'habits'>('moments');
+
   const [numericModal, setNumericModal] = useState<{
     day: number;
     habit: Habit;
     value: string;
   } | null>(null);
-  const { habits, dayEntries, habitLogs, config, loading } = useMonthData(year, month);
 
-  const isLandscape = width > 600;
+  const { habits, dayEntries, habitLogs, config, loading } = useMonthData(year, month);
+  const isDesktop = columns === 2;
 
   const changeMonth = (delta: number) => {
     const next = shiftMonth(year, month, delta);
@@ -81,11 +86,7 @@ export default function JournalScreen() {
         return;
       }
 
-      setNumericModal({
-        day,
-        habit,
-        value: existing?.value ?? '',
-      });
+      setNumericModal({ day, habit, value: existing?.value ?? '' });
     },
     [year, month, habitLogs, refresh]
   );
@@ -96,13 +97,11 @@ export default function JournalScreen() {
       const { day, habit } = numericModal;
       const date = getDateForDay(year, month, day);
       const entry = await getOrCreateDayEntry(date);
-
       if (!value.trim()) {
         await deleteHabitLog(entry.id, habit.id);
       } else {
         await upsertHabitLog(entry.id, habit.id, value.trim());
       }
-
       setNumericModal(null);
       refresh();
     },
@@ -117,45 +116,155 @@ export default function JournalScreen() {
     [year, month, goToDate]
   );
 
+  // Month title: "May" roman + "2026" italic accent
+  const monthName = format(new Date(year, month - 1, 1), 'MMMM');
+  const yearStr   = String(year);
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => changeMonth(-1)} hitSlop={12}>
-          <Text style={styles.navBtn}>‹</Text>
+    <View style={[styles.container, { backgroundColor: t.paper, paddingTop: insets.top + 8 }]}>
+      <GridOverlay />
+
+      {/* ── Header ── */}
+      <View style={[styles.header, { paddingHorizontal: 20 }]}>
+        <Pressable onPress={() => changeMonth(-1)} hitSlop={12} style={styles.navBtn}>
+          <Text style={[styles.navText, { color: t.accent }]}>‹</Text>
         </Pressable>
-        <Text style={styles.monthTitle}>{formatMonthYear(year, month)}</Text>
-        <Pressable onPress={() => changeMonth(1)} hitSlop={12}>
-          <Text style={styles.navBtn}>›</Text>
+
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{
+            fontFamily: FONT_MONO,
+            fontSize: t.fs.meta,
+            letterSpacing: 2.2,
+            textTransform: 'uppercase',
+            color: t.accent,
+            marginBottom: 4,
+          }}>
+            The month of
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+            <Text style={{
+              fontFamily: FONT_HEADING,
+              fontSize: isDesktop ? 44 : 32,
+              fontWeight: '700',
+              color: t.ink.black,
+              letterSpacing: -0.5,
+            }}>
+              {monthName}{' '}
+            </Text>
+            <Text style={{
+              fontFamily: FONT_HEADING,
+              fontSize: isDesktop ? 44 : 32,
+              fontWeight: '400',
+              fontStyle: 'italic',
+              color: t.accent,
+              letterSpacing: -0.5,
+            }}>
+              {yearStr}
+            </Text>
+          </View>
+        </View>
+
+        <Pressable onPress={() => changeMonth(1)} hitSlop={12} style={styles.navBtn}>
+          <Text style={[styles.navText, { color: t.accent }]}>›</Text>
         </Pressable>
       </View>
 
-      {config?.reminderMessage ? (
-        <Text style={styles.reminder}>{config.reminderMessage}</Text>
-      ) : null}
+      <DoubleRule marginTop={8} color={t.ink.black} />
 
-      <View style={styles.tabRow}>
-        <Pressable
-          style={[styles.tab, view === 'spread' && styles.tabActive]}
-          onPress={() => setView('spread')}>
-          <Text style={[styles.tabText, view === 'spread' && styles.tabTextActive]}>Spread</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, view === 'matrix' && styles.tabActive]}
-          onPress={() => setView('matrix')}>
-          <Text style={[styles.tabText, view === 'matrix' && styles.tabTextActive]}>Habits</Text>
-        </Pressable>
-      </View>
-
-      {!isLandscape && view === 'matrix' && (
-        <Text style={styles.rotateHint}>Rotate your device for the full habit matrix view</Text>
+      {/* ── Tab pills (phone + tablet only) ── */}
+      {!isDesktop && (
+        <View style={[styles.tabRow, { paddingHorizontal: 20, marginTop: 14, marginBottom: 10 }]}>
+          {([
+            { id: 'moments', label: 'Memorable Moments' },
+            { id: 'habits',  label: 'Habit Matrix' },
+          ] as const).map((tab) => {
+            const active = view === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => setView(tab.id)}
+                style={[
+                  styles.tabPill,
+                  {
+                    backgroundColor: active ? t.ink.black : 'transparent',
+                    borderColor: t.ink.black,
+                  },
+                ]}>
+                <Text style={{
+                  fontFamily: FONT_HEADING,
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: active ? t.paper : t.ink.black,
+                }}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       )}
 
+      {/* ── Body ── */}
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}>
-        <View style={[styles.page, { minHeight: Dimensions.get('window').height * 0.7 }]}>
-          <GridBackground width={width - 32} height={400} />
-          {view === 'spread' ? (
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}>
+
+        {isDesktop ? (
+          /* Desktop: side-by-side spread */
+          <View style={styles.spread}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.pageLabel, { color: t.faded, borderBottomColor: t.rule, fontFamily: FONT_MONO }]}>
+                LEFT PAGE / MEMORABLE MOMENTS
+              </Text>
+              <MemorableMoments
+                year={year}
+                month={month}
+                dayEntries={dayEntries}
+                onEdit={handleMomentEdit}
+                onDayPress={openDay}
+              />
+            </View>
+            <View style={[styles.spreadDivider, { backgroundColor: t.rule }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.pageLabel, { color: t.faded, borderBottomColor: t.rule, fontFamily: FONT_MONO }]}>
+                RIGHT PAGE / HABIT MATRIX
+              </Text>
+              <HabitMatrix
+                year={year}
+                month={month}
+                habits={habits}
+                habitLogs={habitLogs}
+                onCellPress={handleCellPress}
+              />
+              {/* Hyper-focus card */}
+              {(config?.hyperFocus || config?.reminderMessage) ? (
+                <View style={[
+                  styles.hyperFocusCard,
+                  {
+                    borderColor: t.rule,
+                    borderLeftColor: t.ink.blue,
+                    backgroundColor: t.dark ? 'rgba(30,58,138,0.06)' : 'rgba(30,58,138,0.04)',
+                    marginTop: 24,
+                  },
+                ]}>
+                  <Text style={{ fontFamily: FONT_MONO, fontSize: t.fs.meta, letterSpacing: 2.2, textTransform: 'uppercase', color: t.ink.blue, marginBottom: 4 }}>
+                    HYPER-FOCUS · {format(new Date(year, month - 1, 1), 'MMM').toUpperCase()}
+                  </Text>
+                  <Text style={{ fontFamily: FONT_HEADING, fontSize: t.fs.h2, fontWeight: '700', color: t.ink.black, lineHeight: t.fs.h2 * 1.1 }}>
+                    {config.hyperFocus ?? config.reminderMessage}
+                  </Text>
+                  {config.hyperFocus && config.reminderMessage ? (
+                    <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 14, color: t.faded, marginTop: 6 }}>
+                      {config.reminderMessage}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          </View>
+        ) : (
+          /* Phone/tablet: single column */
+          view === 'moments' ? (
             <MemorableMoments
               year={year}
               month={month}
@@ -171,15 +280,9 @@ export default function JournalScreen() {
               habitLogs={habitLogs}
               onCellPress={handleCellPress}
             />
-          )}
-        </View>
+          )
+        )}
       </ScrollView>
-
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      )}
 
       <NumericInputModal
         visible={numericModal !== null}
@@ -193,88 +296,35 @@ export default function JournalScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: JournalTheme.background,
-  },
+  container: { flex: 1, position: 'relative' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  navBtn: {
-    fontSize: 28,
-    color: JournalTheme.accent,
-    paddingHorizontal: 8,
+  navBtn: { paddingHorizontal: 8 },
+  navText: { fontSize: 28, lineHeight: 32 },
+  tabRow: { flexDirection: 'row', gap: 8 },
+  tabPill: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
   },
-  monthTitle: {
-    fontSize: 20,
-    fontFamily: 'Georgia',
-    color: JournalTheme.text,
-    fontWeight: '600',
+  scroll: { flex: 1 },
+  content: { padding: 20 },
+  spread: { flexDirection: 'row', gap: 0 },
+  spreadDivider: { width: 1, marginHorizontal: 24 },
+  pageLabel: {
+    fontSize: 9,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    paddingBottom: 8,
+    marginBottom: 12,
+    borderBottomWidth: 1,
   },
-  reminder: {
-    fontSize: 13,
-    fontStyle: 'italic',
-    color: JournalTheme.textMuted,
-    paddingHorizontal: 20,
-    marginBottom: 8,
-    fontFamily: 'Georgia',
-  },
-  tabRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 8,
-    marginBottom: 8,
-  },
-  tab: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+  hyperFocusCard: {
     borderWidth: 1,
-    borderColor: JournalTheme.border,
-  },
-  tabActive: {
-    backgroundColor: JournalTheme.accent,
-    borderColor: JournalTheme.accent,
-  },
-  tabText: {
-    fontSize: 13,
-    color: JournalTheme.textMuted,
-  },
-  tabTextActive: {
-    color: '#FFF',
-    fontWeight: '600',
-  },
-  rotateHint: {
-    fontSize: 12,
-    color: JournalTheme.warning,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 4,
-    fontStyle: 'italic',
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  page: {
-    position: 'relative',
-    padding: 8,
-    borderWidth: 1,
-    borderColor: JournalTheme.border,
-    backgroundColor: '#FFFDF9',
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(250,248,245,0.7)',
-  },
-  loadingText: {
-    color: JournalTheme.textMuted,
+    borderLeftWidth: 3,
+    padding: 14,
   },
 });

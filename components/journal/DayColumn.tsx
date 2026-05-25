@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { JournalTheme } from '@/constants/theme';
+import { FONT_MONO } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { getDaysInMonthCount } from '@/utils/dates';
 
 type DayColumnProps = {
@@ -10,15 +11,22 @@ type DayColumnProps = {
 };
 
 export function DayColumn({ year, month, loggedDays }: DayColumnProps) {
+  const t = useTheme();
   const daysCount = getDaysInMonthCount(year, month);
   const days = Array.from({ length: daysCount }, (_, i) => i + 1);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Days</Text>
+      <Text style={[styles.title, { fontFamily: FONT_MONO, color: t.faded }]}>Days</Text>
       {days.map((day) => (
         <View key={day} style={styles.row}>
-          <Text style={[styles.day, loggedDays?.has(day) && styles.logged]}>{day}</Text>
+          <Text style={[
+            styles.day,
+            { fontFamily: FONT_MONO, color: t.faded },
+            loggedDays?.has(day) && { color: t.ink.black, fontWeight: '700' },
+          ]}>
+            {day}
+          </Text>
         </View>
       ))}
     </View>
@@ -32,7 +40,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 10,
-    color: JournalTheme.textMuted,
     marginBottom: 8,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -44,13 +51,7 @@ const styles = StyleSheet.create({
   },
   day: {
     fontSize: 12,
-    fontFamily: 'SpaceMono',
-    color: JournalTheme.textMuted,
     textAlign: 'right',
     paddingRight: 6,
-  },
-  logged: {
-    color: JournalTheme.text,
-    fontWeight: '700',
   },
 });

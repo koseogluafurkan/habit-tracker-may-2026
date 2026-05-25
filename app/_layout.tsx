@@ -10,8 +10,8 @@ import 'react-native-reanimated';
 import { AddToHomeScreenBanner } from '@/components/AddToHomeScreenBanner';
 import { DaySelectionProvider } from '@/contexts/DaySelectionContext';
 import { DatabaseProvider } from '@/contexts/DatabaseContext';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { registerServiceWorker } from '@/constants/pwa';
-import { JournalTheme } from '@/constants/theme';
 import { useResponsive } from '@/hooks/useResponsive';
 
 export { ErrorBoundary } from 'expo-router';
@@ -20,12 +20,13 @@ SplashScreen.preventAutoHideAsync();
 
 function AppShell() {
   const { contentMaxWidth } = useResponsive();
+  const t = useTheme();
 
   return (
     <View
       style={{
         flex: 1,
-        backgroundColor: JournalTheme.background,
+        backgroundColor: t.paper,
         maxWidth: contentMaxWidth,
         width: '100%',
         alignSelf: 'center',
@@ -33,7 +34,7 @@ function AppShell() {
       <AddToHomeScreenBanner />
       <Stack
         screenOptions={{
-          contentStyle: { backgroundColor: JournalTheme.background },
+          contentStyle: { backgroundColor: t.paper },
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
@@ -44,6 +45,7 @@ function AppShell() {
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    IBMPlexMono: require('../assets/fonts/IBMPlexMono-Regular.ttf'),
   });
 
   useEffect(() => {
@@ -66,12 +68,14 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <DatabaseProvider>
-        <DaySelectionProvider>
-          <StatusBar style="dark" />
-          <AppShell />
-        </DaySelectionProvider>
-      </DatabaseProvider>
+      <ThemeProvider>
+        <DatabaseProvider>
+          <DaySelectionProvider>
+            <StatusBar style="auto" />
+            <AppShell />
+          </DaySelectionProvider>
+        </DatabaseProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

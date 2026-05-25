@@ -1,10 +1,10 @@
 import { useWindowDimensions, View } from 'react-native';
 
-import { JournalTheme } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { DayEntry } from '@/db/schema';
 import { getDaysInMonthCount } from '@/utils/dates';
 
-import { GridBackground } from '../journal/GridBackground';
+import { GridOverlay } from '../journal/atoms/GridOverlay';
 import { SvgLineChart } from './SvgLineChart';
 
 type SleepChartProps = {
@@ -14,6 +14,7 @@ type SleepChartProps = {
 };
 
 export function SleepChart({ year, month, dayEntries }: SleepChartProps) {
+  const t = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const width = Math.min(windowWidth - 48, 900);
   const daysCount = getDaysInMonthCount(year, month);
@@ -32,13 +33,14 @@ export function SleepChart({ year, month, dayEntries }: SleepChartProps) {
           width,
           height: 200,
           borderWidth: 1,
-          borderColor: JournalTheme.border,
+          borderColor: t.rule,
           overflow: 'hidden',
+          position: 'relative',
         }}>
-        <GridBackground width={width} height={200} />
+        <GridOverlay cellSize={20} />
         {points.length > 0 ? (
           <SvgLineChart
-            series={[{ points, color: JournalTheme.pen.blue }]}
+            series={[{ points, color: t.ink.blue }]}
             width={width}
             height={200}
             minY={4}

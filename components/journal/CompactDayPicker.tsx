@@ -2,7 +2,8 @@ import { addDays, format, isSameDay, startOfWeek } from 'date-fns';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { JournalTheme } from '@/constants/theme';
+import { FONT_MONO } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { isToday, shiftDay } from '@/utils/dates';
 
 import { CalendarModal } from './CalendarModal';
@@ -13,6 +14,7 @@ type CompactDayPickerProps = {
 };
 
 export function CompactDayPicker({ selectedDate, onSelect }: CompactDayPickerProps) {
+  const t = useTheme();
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
@@ -25,19 +27,28 @@ export function CompactDayPicker({ selectedDate, onSelect }: CompactDayPickerPro
     <View style={styles.container}>
       <View style={styles.row}>
         <Pressable onPress={() => onSelect(shiftDay(selectedDate, -7))} hitSlop={8}>
-          <Text style={styles.nav}>‹</Text>
+          <Text style={[styles.nav, { color: t.accent }]}>‹</Text>
         </Pressable>
 
         <View style={styles.days}>
           {weekDays.map((day) => {
             const selected = isSameDay(day, selectedDate);
-            const today = isToday(day);
+            const tod = isToday(day);
             return (
               <Pressable
                 key={day.toISOString()}
                 onPress={() => onSelect(day)}
-                style={[styles.chip, selected && styles.chipSelected, today && !selected && styles.chipToday]}>
-                <Text style={[styles.name, selected && styles.chipTextSelected]}>
+                style={[
+                  styles.chip,
+                  { borderColor: t.rule, backgroundColor: t.paperHi },
+                  selected && { backgroundColor: t.accent, borderColor: t.accent },
+                  tod && !selected && { borderColor: t.ink.blue },
+                ]}>
+                <Text style={[
+                  styles.name,
+                  { fontFamily: FONT_MONO, color: t.faded },
+                  selected && { color: t.paper },
+                ]}>
                   {format(day, 'EEE')}
                 </Text>
               </Pressable>
@@ -46,7 +57,7 @@ export function CompactDayPicker({ selectedDate, onSelect }: CompactDayPickerPro
         </View>
 
         <Pressable onPress={() => onSelect(shiftDay(selectedDate, 7))} hitSlop={8}>
-          <Text style={styles.nav}>›</Text>
+          <Text style={[styles.nav, { color: t.accent }]}>›</Text>
         </Pressable>
 
         <Pressable style={styles.calBtn} onPress={() => setCalendarOpen(true)}>
@@ -76,7 +87,6 @@ const styles = StyleSheet.create({
   },
   nav: {
     fontSize: 20,
-    color: JournalTheme.accent,
     width: 24,
     textAlign: 'center',
   },
@@ -91,24 +101,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: JournalTheme.border,
-    backgroundColor: '#FFFDF9',
-  },
-  chipSelected: {
-    backgroundColor: JournalTheme.accent,
-    borderColor: JournalTheme.accent,
-  },
-  chipToday: {
-    borderColor: JournalTheme.pen.blue,
   },
   name: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
-    color: JournalTheme.textMuted,
     textTransform: 'uppercase',
-  },
-  chipTextSelected: {
-    color: '#FFF',
+    letterSpacing: 0.5,
   },
   calBtn: {
     paddingHorizontal: 6,
