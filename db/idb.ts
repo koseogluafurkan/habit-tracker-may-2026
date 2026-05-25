@@ -1,3 +1,10 @@
+// ─── Supabase-backed snapshot store ────────────────────────────────────────
+// Drop-in replacement for the previous IndexedDB module.
+// - Loads full snapshot from Supabase once on startup (in-memory cache).
+// - updateSnapshot(updater): computes new snapshot, diffs against prev,
+//   pushes per-row inserts/updates/deletes to Supabase.
+// - Single-user, no auth. RLS policies permit anon write.
+
 import type {
   DayEntry,
   Habit,
@@ -5,7 +12,9 @@ import type {
   MetricDefinition,
   MetricLog,
   MonthConfig,
+  PersonalSetup,
 } from './schema';
+import { supabase } from './supabase';
 
 export type DatabaseSnapshot = {
   habits: Habit[];
@@ -14,11 +23,8 @@ export type DatabaseSnapshot = {
   metricDefinitions: MetricDefinition[];
   metricLogs: MetricLog[];
   monthConfig: MonthConfig[];
+  personalSetups: PersonalSetup[];
 };
-
-const DB_NAME = 'habit-tracker-pwa';
-const DB_VERSION = 1;
-const STORE_NAME = 'snapshot';
 
 const emptySnapshot = (): DatabaseSnapshot => ({
   habits: [],
@@ -27,73 +33,149 @@ const emptySnapshot = (): DatabaseSnapshot => ({
   metricDefinitions: [],
   metricLogs: [],
   monthConfig: [],
+  personalSetups: [],
 });
 
 let memoryCache: DatabaseSnapshot | null = null;
+let initPromise: Promise<DatabaseSnapshot> | null = null;
 
-function openDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (typeof indexedDB === 'undefined') {
-      reject(new Error('IndexedDB is not available'));
-      return;
-    }
-
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => reject(request.error ?? new Error('Failed to open IndexedDB'));
-    request.onsuccess = () => resolve(request.result);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-  });
+// ─── Row mappers (camelCase ↔ snake_case) ──────────────────────────────────
+function habitFromRow(r: any): Habit {
+  return { id: r.id, year: r.year, month: r.month, name: r.name, color: r.color, type: r.type, sortOrder: r.sort_order ?? 0 };
+}
+function habitToRow(h: Habit): any {
+  return { id: h.id, year: h.year, month: h.month, name: h.name, color: h.color, type: h.type, sort_order: h.sortOrder };
 }
 
+function dayEntryFromRow(r: any): DayEntry {
+  return { id: r.id, date: r.date, memorableMoment: r.memorable_moment, dayReminder: r.day_reminder, sleepHours: r.sleep_hours, sleepScore: r.sleep_score };
+}
+function dayEntryToRow(d: DayEntry): any {
+  return { id: d.id, date: d.date, memorable_moment: d.memorableMoment, day_reminder: d.dayReminder, sleep_hours: d.sleepHours, sleep_score: d.sleepScore };
+}
+
+function habitLogFromRow(r: any): HabitLog {
+  return { id: r.id, dayEntryId: r.day_entry_id, habitId: r.habit_id, value: r.value, note: r.note ?? null };
+}
+function habitLogToRow(l: HabitLog): any {
+  return { id: l.id, day_entry_id: l.dayEntryId, habit_id: l.habitId, value: l.value, note: l.note };
+}
+
+function metricDefFromRow(r: any): MetricDefinition {
+  return { id: r.id, name: r.name, scale: r.scale, minVal: Number(r.min_val), maxVal: Number(r.max_val), sortOrder: r.sort_order ?? 0 };
+}
+function metricDefToRow(m: MetricDefinition): any {
+  return { id: m.id, name: m.name, scale: m.scale, min_val: m.minVal, max_val: m.maxVal, sort_order: m.sortOrder };
+}
+
+function metricLogFromRow(r: any): MetricLog {
+  return { id: r.id, dayEntryId: r.day_entry_id, metricId: r.metric_id, value: Number(r.value) };
+}
+function metricLogToRow(l: MetricLog): any {
+  return { id: l.id, day_entry_id: l.dayEntryId, metric_id: l.metricId, value: l.value };
+}
+
+function monthConfigFromRow(r: any): MonthConfig {
+  return { id: r.id, year: r.year, month: r.month, nextMonthIdeas: r.next_month_ideas, reminderMessage: r.reminder_message, hyperFocus: r.hyper_focus };
+}
+function monthConfigToRow(c: MonthConfig): any {
+  return { id: c.id, year: c.year, month: c.month, next_month_ideas: c.nextMonthIdeas, reminder_message: c.reminderMessage, hyper_focus: c.hyperFocus };
+}
+
+function personalSetupFromRow(r: any): PersonalSetup {
+  return { id: r.id, type: r.type, text: r.text, sortOrder: r.sort_order ?? 0, createdAt: r.created_at ?? new Date().toISOString(), targetDate: r.target_date, status: r.status ?? 'active' };
+}
+function personalSetupToRow(p: PersonalSetup): any {
+  return { id: p.id, type: p.type, text: p.text, sort_order: p.sortOrder, target_date: p.targetDate, status: p.status };
+}
+
+// ─── Initial fetch ─────────────────────────────────────────────────────────
+async function fetchSnapshot(): Promise<DatabaseSnapshot> {
+  const [habitsR, dayEntriesR, habitLogsR, metricDefsR, metricLogsR, monthConfigR, personalSetupsR] =
+    await Promise.all([
+      supabase.from('habits').select('*'),
+      supabase.from('day_entries').select('*'),
+      supabase.from('habit_logs').select('*'),
+      supabase.from('metric_definitions').select('*'),
+      supabase.from('metric_logs').select('*'),
+      supabase.from('month_config').select('*'),
+      supabase.from('personal_setups').select('*'),
+    ]);
+
+  // If any errored, log but return empty (so app can still run)
+  for (const r of [habitsR, dayEntriesR, habitLogsR, metricDefsR, metricLogsR, monthConfigR, personalSetupsR]) {
+    if (r.error) console.error('Supabase fetch error:', r.error);
+  }
+
+  return {
+    habits:             (habitsR.data         ?? []).map(habitFromRow),
+    dayEntries:         (dayEntriesR.data     ?? []).map(dayEntryFromRow),
+    habitLogs:          (habitLogsR.data      ?? []).map(habitLogFromRow),
+    metricDefinitions:  (metricDefsR.data     ?? []).map(metricDefFromRow),
+    metricLogs:         (metricLogsR.data     ?? []).map(metricLogFromRow),
+    monthConfig:        (monthConfigR.data    ?? []).map(monthConfigFromRow),
+    personalSetups:     (personalSetupsR.data ?? []).map(personalSetupFromRow),
+  };
+}
+
+// ─── Diff-sync ─────────────────────────────────────────────────────────────
+// For each table, compares prev vs next by id:
+//   - in next but not in prev → INSERT
+//   - in both but different    → UPDATE (upsert)
+//   - in prev but not in next  → DELETE
+async function syncTable<T extends { id: string }>(
+  tableName: string,
+  prev: T[],
+  next: T[],
+  toRow: (item: T) => any,
+): Promise<void> {
+  const prevMap = new Map(prev.map((r) => [r.id, r]));
+  const nextMap = new Map(next.map((r) => [r.id, r]));
+
+  const toUpsert: T[] = [];
+  const toDelete: string[] = [];
+
+  for (const [id, item] of nextMap) {
+    const prevItem = prevMap.get(id);
+    if (!prevItem || JSON.stringify(prevItem) !== JSON.stringify(item)) {
+      toUpsert.push(item);
+    }
+  }
+  for (const id of prevMap.keys()) {
+    if (!nextMap.has(id)) toDelete.push(id);
+  }
+
+  if (toUpsert.length > 0) {
+    const { error } = await supabase.from(tableName).upsert(toUpsert.map(toRow));
+    if (error) console.error(`Supabase upsert error on ${tableName}:`, error);
+  }
+  if (toDelete.length > 0) {
+    const { error } = await supabase.from(tableName).delete().in('id', toDelete);
+    if (error) console.error(`Supabase delete error on ${tableName}:`, error);
+  }
+}
+
+async function syncSnapshot(prev: DatabaseSnapshot, next: DatabaseSnapshot): Promise<void> {
+  // Order matters: parent tables first (day_entries before habit_logs), child deletes via CASCADE
+  await syncTable('day_entries',        prev.dayEntries,        next.dayEntries,        dayEntryToRow);
+  await syncTable('habits',             prev.habits,            next.habits,            habitToRow);
+  await syncTable('metric_definitions', prev.metricDefinitions, next.metricDefinitions, metricDefToRow);
+  await syncTable('habit_logs',         prev.habitLogs,         next.habitLogs,         habitLogToRow);
+  await syncTable('metric_logs',        prev.metricLogs,        next.metricLogs,        metricLogToRow);
+  await syncTable('month_config',       prev.monthConfig,       next.monthConfig,       monthConfigToRow);
+  await syncTable('personal_setups',    prev.personalSetups,    next.personalSetups,    personalSetupToRow);
+}
+
+// ─── Public API ────────────────────────────────────────────────────────────
 async function readSnapshot(): Promise<DatabaseSnapshot> {
   if (memoryCache) return memoryCache;
+  if (initPromise) return initPromise;
 
-  const db = await openDatabase();
+  initPromise = fetchSnapshot()
+    .then((s) => { memoryCache = s; return s; })
+    .catch((e) => { console.error('Snapshot init failed:', e); memoryCache = emptySnapshot(); return memoryCache; });
 
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.get('data');
-
-    request.onerror = () => reject(request.error ?? new Error('Failed to read data'));
-    request.onsuccess = () => {
-      const raw = (request.result as DatabaseSnapshot | undefined) ?? emptySnapshot();
-      memoryCache = {
-        ...raw,
-        dayEntries: raw.dayEntries.map((entry) => ({
-          ...entry,
-          dayReminder: entry.dayReminder ?? null,
-        })),
-        // migrate older snapshots that may lack hyperFocus
-        monthConfig: raw.monthConfig.map((c) => ({
-          ...c,
-          hyperFocus: (c as any).hyperFocus ?? null,
-        })),
-      };
-      resolve(memoryCache);
-    };
-  });
-}
-
-async function writeSnapshot(snapshot: DatabaseSnapshot): Promise<void> {
-  memoryCache = snapshot;
-  const db = await openDatabase();
-
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.put(snapshot, 'data');
-
-    request.onerror = () => reject(request.error ?? new Error('Failed to write data'));
-    request.onsuccess = () => resolve();
-  });
+  return initPromise;
 }
 
 export async function initIdb(): Promise<void> {
@@ -109,10 +191,14 @@ export async function updateSnapshot(
 ): Promise<DatabaseSnapshot> {
   const current = await readSnapshot();
   const next = updater(JSON.parse(JSON.stringify(current)) as DatabaseSnapshot);
-  await writeSnapshot(next);
+  memoryCache = next;
+  // Fire-and-forget sync — local cache is updated synchronously for snappy UI
+  syncSnapshot(current, next).catch((e) => console.error('Supabase sync failed:', e));
   return next;
 }
 
 export async function replaceSnapshot(snapshot: DatabaseSnapshot): Promise<void> {
-  await writeSnapshot(snapshot);
+  const current = await readSnapshot();
+  memoryCache = { ...emptySnapshot(), ...snapshot };
+  syncSnapshot(current, memoryCache).catch((e) => console.error('Supabase replace failed:', e));
 }

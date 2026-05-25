@@ -16,8 +16,11 @@ import { useBottomPadding } from '@/hooks/useBottomPadding';
 import { useDayEntry } from '@/hooks/useDayEntry';
 import { useHabits } from '@/hooks/useHabits';
 import { useMetrics } from '@/hooks/useMetrics';
+import { useMonthData } from '@/hooks/useMonthData';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useMorningRevisit } from '@/hooks/useMorningRevisit';
+import { setHabitLogNote } from '@/db/operations';
+import { useDatabase } from '@/contexts/DatabaseContext';
 import {
   FONT_HEADING, FONT_MONO, FONT_BODY,
   DAILY_QUOTES, habitLabel,
@@ -149,81 +152,152 @@ function HabitRow({
   habit,
   checked,
   value,
+  note,
+  noteExpanded,
   onToggle,
   onNumericPress,
+  onToggleNote,
+  onSaveNote,
   isLast,
 }: {
   habit: Habit;
   checked: boolean;
   value?: string;
+  note: string;
+  noteExpanded: boolean;
   onToggle: () => void;
   onNumericPress: () => void;
+  onToggleNote: () => void;
+  onSaveNote: (text: string) => void;
   isLast: boolean;
 }) {
   const t = useTheme();
   const color = habit.color as HabitColor;
   const penColor =
     color === 'blue' ? t.ink.blue : color === 'red' ? t.ink.red : t.ink.black;
+  const [draft, setDraft] = useState(note);
+
+  useEffect(() => { setDraft(note); }, [note]);
+
+  const hasNote = note.trim().length > 0;
 
   return (
-    <Pressable
-      onPress={habit.type === 'boolean' ? onToggle : onNumericPress}
-      style={[
-        styles.habitRow,
-        {
-          paddingVertical: t.sp.sm,
-          borderBottomWidth: isLast ? 0 : StyleSheet.hairlineWidth,
-          borderBottomColor: t.rule,
-          borderStyle: 'dotted',
-        },
-      ]}>
-      {habit.type === 'boolean' ? (
-        <InkCheck checked={checked} color={color} size={48} readOnly />
-      ) : (
-        <View style={[styles.numericBox, { borderColor: penColor }]}>
-          <Text style={[styles.numericVal, { color: penColor, fontFamily: FONT_HEADING }]}>
-            {value || '—'}
-          </Text>
-        </View>
-      )}
+    <View
+      style={{
+        paddingVertical: t.sp.sm,
+        borderBottomWidth: isLast ? 0 : StyleSheet.hairlineWidth,
+        borderBottomColor: t.rule,
+        borderStyle: 'dotted',
+      }}>
+      <Pressable
+        onPress={habit.type === 'boolean' ? onToggle : onNumericPress}
+        style={styles.habitRow}>
+        {habit.type === 'boolean' ? (
+          <InkCheck checked={checked} color={color} size={48} readOnly />
+        ) : (
+          <View style={[styles.numericBox, { borderColor: penColor }]}>
+            <Text style={[styles.numericVal, { color: penColor, fontFamily: FONT_HEADING }]}>
+              {value || '—'}
+            </Text>
+          </View>
+        )}
 
-      <View style={{ flex: 1, marginLeft: 14 }}>
-        <Text
-          style={{
-            fontFamily: FONT_BODY,
-            fontSize: t.fs.lead,
-            color: penColor,
-            fontWeight: color === 'black' ? '700' : '500',
-            lineHeight: t.fs.lead * 1.2,
-          }}>
-          {habit.name}
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-          <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: penColor }} />
+        <View style={{ flex: 1, marginLeft: 14 }}>
           <Text
             style={{
-              fontFamily: FONT_MONO,
-              fontSize: t.fs.meta,
-              letterSpacing: 2,
-              textTransform: 'uppercase',
-              color: t.accent,
+              fontFamily: FONT_BODY,
+              fontSize: t.fs.lead,
+              color: penColor,
+              fontWeight: color === 'black' ? '700' : '500',
+              lineHeight: t.fs.lead * 1.2,
             }}>
-            {habitLabel(color)}
+            {habit.name}
           </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: penColor }} />
+            <Text
+              style={{
+                fontFamily: FONT_MONO,
+                fontSize: t.fs.meta,
+                letterSpacing: 2,
+                textTransform: 'uppercase',
+                color: t.accent,
+              }}>
+              {habitLabel(color)}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      {/* Right accent bar */}
-      <View
-        style={{
-          width: 4,
-          height: 32,
-          backgroundColor: penColor,
-          opacity: checked ? 1 : 0.22,
-          flexShrink: 0,
-        }}
-      />
-    </Pressable>
+        {/* Note toggle button */}
+        <Pressable
+          onPress={(e) => { e.stopPropagation?.(); onToggleNote(); }}
+          hitSlop={8}
+          style={{
+            paddingHorizontal: 8,
+            paddingVertical: 6,
+            marginRight: 6,
+            opacity: hasNote || noteExpanded ? 1 : 0.45,
+          }}>
+          <Text style={{ fontSize: 14, color: hasNote ? t.accent : t.faded }}>
+            {hasNote ? '✎' : '+ note'}
+          </Text>
+        </Pressable>
+
+        {/* Right accent bar */}
+        <View
+          style={{
+            width: 4,
+            height: 32,
+            backgroundColor: penColor,
+            opacity: checked ? 1 : 0.22,
+            flexShrink: 0,
+          }}
+        />
+      </Pressable>
+
+      {/* Expandable note */}
+      {noteExpanded ? (
+        <View style={{ paddingLeft: 62, paddingTop: 6, paddingRight: 8 }}>
+          <TextInput
+            style={{
+              fontFamily: FONT_BODY,
+              fontStyle: 'italic',
+              fontSize: 13,
+              color: t.ink.black,
+              borderLeftWidth: 2,
+              borderLeftColor: penColor,
+              paddingLeft: 8,
+              paddingVertical: 4,
+              minHeight: 28,
+            }}
+            multiline
+            placeholder="A note for this habit today…"
+            placeholderTextColor={t.faded}
+            value={draft}
+            onChangeText={setDraft}
+            onBlur={() => onSaveNote(draft)}
+          />
+        </View>
+      ) : hasNote ? (
+        <Pressable
+          onPress={onToggleNote}
+          style={{ paddingLeft: 62, paddingTop: 4, paddingRight: 8 }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              fontFamily: FONT_BODY,
+              fontStyle: 'italic',
+              fontSize: 12,
+              color: t.faded,
+              borderLeftWidth: 2,
+              borderLeftColor: penColor,
+              paddingLeft: 8,
+            }}>
+            {note}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -374,6 +448,8 @@ export function DayJournalView() {
 
   const { habits }  = useHabits(year, month);
   const { metrics } = useMetrics();
+  const { config: monthConfig } = useMonthData(year, month);
+  const { refresh } = useDatabase();
   const {
     entry, habitLogs, metricLogs, loading,
     saveMemorableMoment, saveDayReminder, saveSleep,
@@ -389,6 +465,7 @@ export function DayJournalView() {
   const [numericModal, setNumericModal] = useState<{ habit: Habit; value: string } | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarNote, setCalendarNote] = useState<string | null>(null);
+  const [expandedNoteHabitId, setExpandedNoteHabitId] = useState<string | null>(null);
 
   // Morning revisit
   const { shouldShow: showRevisit, yesterday, dismiss: dismissRevisit } = useMorningRevisit();
@@ -408,7 +485,15 @@ export function DayJournalView() {
   }, [metricLogs, selectedDate]);
 
   const getHabitValue = (id: string) => habitLogs.find((l) => l.habitId === id)?.value;
+  const getHabitNote  = (id: string) => habitLogs.find((l) => l.habitId === id)?.note ?? '';
   const isHabitChecked = (id: string) => getHabitValue(id) === 'true';
+
+  const handleSaveHabitNote = async (habitId: string, text: string) => {
+    const ops = await import('@/db/operations');
+    const dayEntry = entry ?? (await ops.getOrCreateDayEntry(selectedDate));
+    await setHabitLogNote(dayEntry.id, habitId, text);
+    refresh();
+  };
 
   const handleReminderBlur = async () => {
     await saveDayReminder(reminder);
@@ -636,10 +721,16 @@ export function DayJournalView() {
                         habit={habit}
                         checked={isHabitChecked(habit.id)}
                         value={getHabitValue(habit.id)}
+                        note={getHabitNote(habit.id)}
+                        noteExpanded={expandedNoteHabitId === habit.id}
                         onToggle={() => toggleHabit(habit.id, getHabitValue(habit.id))}
                         onNumericPress={() =>
                           setNumericModal({ habit, value: getHabitValue(habit.id) ?? '' })
                         }
+                        onToggleNote={() =>
+                          setExpandedNoteHabitId((curr) => (curr === habit.id ? null : habit.id))
+                        }
+                        onSaveNote={(text) => handleSaveHabitNote(habit.id, text)}
                         isLast={idx === habits.length - 1}
                       />
                     ))
@@ -718,24 +809,46 @@ export function DayJournalView() {
           ) : null}
         </View>
 
-        {/* ── Footer ── */}
+        {/* ── Hyper-focus banner ── */}
+        {monthConfig?.hyperFocus ? (
+          <View
+            style={{
+              marginTop: t.sp.xl,
+              padding: 12,
+              borderWidth: 1,
+              borderLeftWidth: 3,
+              borderColor: t.rule,
+              borderLeftColor: t.ink.blue,
+              backgroundColor: t.dark ? 'rgba(30,58,138,0.06)' : 'rgba(30,58,138,0.04)',
+            }}>
+            <Text style={{ fontFamily: FONT_MONO, fontSize: t.fs.meta, letterSpacing: 2.2, textTransform: 'uppercase', color: t.ink.blue, marginBottom: 4 }}>
+              HYPER-FOCUS · {format(selectedDate, 'MMM').toUpperCase()}
+            </Text>
+            <Text style={{ fontFamily: FONT_HEADING, fontSize: t.fs.h3, fontWeight: '700', color: t.ink.black, lineHeight: t.fs.h3 * 1.15 }}>
+              {monthConfig.hyperFocus}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* ── Footer: Revisit yesterday (left) + Preview tomorrow (right) ── */}
         <View
           style={[
             styles.footer,
-            { borderTopColor: t.rule, paddingTop: t.sp.md, marginTop: t.sp.xl },
+            { borderTopColor: t.rule, paddingTop: t.sp.md, marginTop: t.sp.xl, justifyContent: 'space-between' },
           ]}>
-          <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.faded, flex: 1 }}>
-            {/* hyper-focus surfaced via monthConfig — placeholder for now */}
-            Hyper-focus this month:{' '}
-            <Text style={{ color: t.ink.black, fontWeight: '600', fontStyle: 'normal' }}>
-              —
-            </Text>
-          </Text>
           <Pressable
-            onPress={dismissRevisit}
+            onPress={() => goToDate(shiftDay(selectedDate, -1))}
             style={[styles.revisitBtn, { borderColor: t.ink.black }]}>
             <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.ink.black }}>
-              Revisit yesterday →
+              ← Revisit yesterday
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => goToDate(shiftDay(selectedDate, 1))}
+            style={[styles.revisitBtn, { borderColor: t.accent }]}>
+            <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.accent }}>
+              Preview tomorrow →
             </Text>
           </Pressable>
         </View>

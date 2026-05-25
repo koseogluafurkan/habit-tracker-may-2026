@@ -8,10 +8,12 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { AddToHomeScreenBanner } from '@/components/AddToHomeScreenBanner';
+import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import { DaySelectionProvider } from '@/contexts/DaySelectionContext';
-import { DatabaseProvider } from '@/contexts/DatabaseContext';
+import { DatabaseProvider, useDatabase } from '@/contexts/DatabaseContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { registerServiceWorker } from '@/constants/pwa';
+import { useOnboarding } from '@/hooks/useOnboarding';
 import { useResponsive } from '@/hooks/useResponsive';
 
 export { ErrorBoundary } from 'expo-router';
@@ -21,6 +23,8 @@ SplashScreen.preventAutoHideAsync();
 function AppShell() {
   const { contentMaxWidth } = useResponsive();
   const t = useTheme();
+  const { ready } = useDatabase();
+  const { mode, dismiss } = useOnboarding();
 
   return (
     <View
@@ -38,6 +42,11 @@ function AppShell() {
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
+
+      {/* Onboarding: first-run wizard + monthly foundation revisit */}
+      {ready && mode ? (
+        <OnboardingModal visible={true} mode={mode} onDismiss={dismiss} />
+      ) : null}
     </View>
   );
 }

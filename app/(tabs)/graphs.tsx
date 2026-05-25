@@ -30,6 +30,8 @@ export default function GraphsScreen() {
   const { metrics } = useMetrics();
   const [metricA, setMetricA] = useState<MetricDefinition | null>(null);
   const [metricB, setMetricB] = useState<MetricDefinition | null>(null);
+  const [metricC, setMetricC] = useState<MetricDefinition | null>(null);
+  const [tripleMode, setTripleMode] = useState(true); // Sprint 4: triple correlation default
 
   const changeMonth = (delta: number) => {
     const next = shiftMonth(year, month, delta);
@@ -37,8 +39,13 @@ export default function GraphsScreen() {
     setMonth(next.month);
   };
 
-  const selectedA = metricA ?? metrics[0] ?? null;
-  const selectedB = metricB ?? metrics[1] ?? null;
+  // Sprint 4 default triple: Sleep Hours / Morning Activation / Evening Lost Time
+  // Falls back to first three metrics if names don't match.
+  const byName = (name: string) =>
+    metrics.find((m) => m.name.toLowerCase() === name.toLowerCase());
+  const selectedA = metricA ?? byName('Sleep Hours')        ?? metrics[0] ?? null;
+  const selectedB = metricB ?? byName('Morning Activation') ?? metrics[1] ?? null;
+  const selectedC = metricC ?? byName('Evening Lost Time')  ?? metrics[2] ?? null;
 
   const monthName = format(new Date(year, month - 1, 1), 'MMMM');
   const yearStr = String(year);
@@ -113,8 +120,39 @@ export default function GraphsScreen() {
         {/* Correlation section */}
         <View style={[styles.sectionLabel, { borderBottomColor: t.rule, marginTop: t.sp.xl }]}>
           <Text style={[styles.sectionLabelText, { fontFamily: FONT_MONO, color: t.faded }]}>
-            02 · LIFESTYLE CORRELATION
+            02 · LIFESTYLE CORRELATION {tripleMode ? '· TRIPLE' : '· DUAL'}
           </Text>
+        </View>
+
+        {/* Dual / Triple toggle */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: t.sp.md }}>
+          {([
+            { key: false, label: 'Dual' },
+            { key: true,  label: 'Triple (Sprint 4)' },
+          ] as { key: boolean; label: string }[]).map(({ key, label }) => {
+            const active = tripleMode === key;
+            return (
+              <Pressable
+                key={String(key)}
+                onPress={() => setTripleMode(key)}
+                style={[
+                  styles.chip,
+                  {
+                    borderColor: active ? t.ink.black : t.rule,
+                    backgroundColor: active ? t.ink.black : 'transparent',
+                  },
+                ]}>
+                <Text style={{
+                  fontFamily: FONT_MONO, fontSize: 11, letterSpacing: 1.2,
+                  fontWeight: '700',
+                  color: active ? t.paper : t.ink.black,
+                  textTransform: 'uppercase',
+                }}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {metrics.length >= 2 ? (
@@ -191,6 +229,43 @@ export default function GraphsScreen() {
               </ScrollView>
             </View>
 
+            {/* Metric C picker — only when triple */}
+            {tripleMode ? (
+              <View style={{ marginBottom: t.sp.md }}>
+                <Text style={{ fontFamily: FONT_MONO, fontSize: t.fs.meta, letterSpacing: 2, textTransform: 'uppercase', color: t.accent, marginBottom: t.sp.xs }}>
+                  Metric C
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {metrics.map((m) => {
+                      const active = selectedC?.id === m.id;
+                      return (
+                        <Pressable
+                          key={m.id}
+                          onPress={() => setMetricC(m)}
+                          style={[
+                            styles.chip,
+                            {
+                              backgroundColor: active ? t.ink.black : 'transparent',
+                              borderColor: active ? t.ink.black : t.rule,
+                            },
+                          ]}>
+                          <Text style={{
+                            fontFamily: FONT_MONO, fontSize: 11, letterSpacing: 1.2,
+                            fontWeight: '700',
+                            color: active ? t.paper : t.ink.black,
+                            textTransform: 'uppercase',
+                          }}>
+                            {m.name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
+            ) : null}
+
             {selectedA && selectedB && !loading && (
               <CorrelationChart
                 year={year}
@@ -198,6 +273,7 @@ export default function GraphsScreen() {
                 metricLogs={metricLogs}
                 metricA={selectedA}
                 metricB={selectedB}
+                metricC={tripleMode ? selectedC : null}
               />
             )}
           </>

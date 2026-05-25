@@ -26,6 +26,8 @@ export type HabitLog = {
   dayEntryId: string;
   habitId: string;
   value: string;
+  /** Optional per-day, per-habit freetext note (Sprint 1 add-on) */
+  note: string | null;
 };
 
 export type MetricDefinition = {
@@ -51,4 +53,18 @@ export type MonthConfig = {
   nextMonthIdeas: string | null;
   reminderMessage: string | null;
   hyperFocus: string | null;
+};
+
+// Sprint 1 — My Foundation
+export type PersonalSetupType = 'anti-goal' | 'limiting-belief' | 'yearly-goal';
+export type PersonalSetupStatus = 'active' | 'done';
+
+export type PersonalSetup = {
+  id: string;
+  type: PersonalSetupType;
+  text: string;
+  sortOrder: number;
+  createdAt: string;
+  targetDate: string | null;     // optional, for yearly-goal
+  status: PersonalSetupStatus;
 };

@@ -9,6 +9,8 @@ import type {
   MetricDefinition,
   MetricLog,
   MonthConfig,
+  PersonalSetup,
+  PersonalSetupType,
 } from './schema';
 
 export async function getHabitsForMonth(year: number, month: number): Promise<Habit[]> {
@@ -121,7 +123,25 @@ export async function upsertHabitLog(dayEntryId: string, habitId: string, value:
     }
     return {
       ...s,
-      habitLogs: [...s.habitLogs, { id: generateId(), dayEntryId, habitId, value }],
+      habitLogs: [...s.habitLogs, { id: generateId(), dayEntryId, habitId, value, note: null }],
+    };
+  });
+}
+
+/** Set or clear the optional per-day-per-habit note. Creates a HabitLog if needed. */
+export async function setHabitLogNote(dayEntryId: string, habitId: string, note: string | null): Promise<void> {
+  await updateSnapshot((s) => {
+    const existing = s.habitLogs.find((l) => l.dayEntryId === dayEntryId && l.habitId === habitId);
+    if (existing) {
+      return {
+        ...s,
+        habitLogs: s.habitLogs.map((l) => (l.id === existing.id ? { ...l, note: note || null } : l)),
+      };
+    }
+    // Create a log with empty value but a note; value '' is acceptable so the log exists
+    return {
+      ...s,
+      habitLogs: [...s.habitLogs, { id: generateId(), dayEntryId, habitId, value: '', note: note || null }],
     };
   });
 }
@@ -247,10 +267,54 @@ export async function upsertMonthConfig(
   return config;
 }
 
+// ─── PersonalSetup CRUD (Sprint 1: My Foundation) ─────────────────────────
+export async function getPersonalSetups(type?: PersonalSetupType): Promise<PersonalSetup[]> {
+  const snapshot = await getSnapshot();
+  const all = [...snapshot.personalSetups].sort((a, b) => a.sortOrder - b.sortOrder);
+  return type ? all.filter((p) => p.type === type) : all;
+}
+
+export async function addPersonalSetup(
+  type: PersonalSetupType,
+  text: string,
+  opts: { targetDate?: string | null } = {},
+): Promise<PersonalSetup> {
+  const existing = await getPersonalSetups(type);
+  const setup: PersonalSetup = {
+    id: generateId(),
+    type,
+    text,
+    sortOrder: existing.length,
+    createdAt: new Date().toISOString(),
+    targetDate: opts.targetDate ?? null,
+    status: 'active',
+  };
+  await updateSnapshot((s) => ({ ...s, personalSetups: [...s.personalSetups, setup] }));
+  return setup;
+}
+
+export async function updatePersonalSetup(
+  id: string,
+  data: Partial<Pick<PersonalSetup, 'text' | 'targetDate' | 'status' | 'sortOrder'>>,
+): Promise<void> {
+  await updateSnapshot((s) => ({
+    ...s,
+    personalSetups: s.personalSetups.map((p) => (p.id === id ? { ...p, ...data } : p)),
+  }));
+}
+
+export async function deletePersonalSetup(id: string): Promise<void> {
+  await updateSnapshot((s) => ({
+    ...s,
+    personalSetups: s.personalSetups.filter((p) => p.id !== id),
+  }));
+}
+
+// ─── Export / Import ───────────────────────────────────────────────────────
 export async function exportAllData() {
   const snapshot = await getSnapshot();
   return {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     habits: snapshot.habits,
     dayEntries: snapshot.dayEntries,
@@ -258,6 +322,7 @@ export async function exportAllData() {
     metricDefinitions: snapshot.metricDefinitions,
     metricLogs: snapshot.metricLogs,
     monthConfig: snapshot.monthConfig,
+    personalSetups: snapshot.personalSetups,
   };
 }
 
@@ -268,13 +333,15 @@ export async function importAllData(data: {
   metricDefinitions?: MetricDefinition[];
   metricLogs?: MetricLog[];
   monthConfig?: MonthConfig[];
+  personalSetups?: PersonalSetup[];
 }) {
   await replaceSnapshot({
     habits: data.habits ?? [],
     dayEntries: data.dayEntries ?? [],
-    habitLogs: data.habitLogs ?? [],
+    habitLogs: (data.habitLogs ?? []).map((l) => ({ ...l, note: l.note ?? null })),
     metricDefinitions: data.metricDefinitions ?? [],
     metricLogs: data.metricLogs ?? [],
     monthConfig: data.monthConfig ?? [],
+    personalSetups: data.personalSetups ?? [],
   });
 }

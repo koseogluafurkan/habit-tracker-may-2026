@@ -14,6 +14,7 @@ type CorrelationChartProps = {
   metricLogs: (MetricLog & { date: string })[];
   metricA: MetricDefinition;
   metricB: MetricDefinition;
+  metricC?: MetricDefinition | null; // Sprint 4: optional third metric for triple correlation
 };
 
 function normalize(value: number, min: number, max: number) {
@@ -50,7 +51,7 @@ function pearsonObservation(r: number | null, nameA: string, nameB: string): str
   return `No meaningful correlation (r = ${r.toFixed(2)}): ${nameA} and ${nameB} appear independent this month.`;
 }
 
-export function CorrelationChart({ year, month, metricLogs, metricA, metricB }: CorrelationChartProps) {
+export function CorrelationChart({ year, month, metricLogs, metricA, metricB, metricC }: CorrelationChartProps) {
   const t = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const width = Math.min(windowWidth - 48, 900);
@@ -58,24 +59,34 @@ export function CorrelationChart({ year, month, metricLogs, metricA, metricB }: 
 
   const dataA: { value: number; label: string }[] = [];
   const dataB: { value: number; label: string }[] = [];
+  const dataC: { value: number; label: string }[] = [];
   const pairedA: number[] = [];
   const pairedB: number[] = [];
+  const pairedAC: number[] = [];
+  const pairedCA: number[] = [];
+  const pairedBC: number[] = [];
+  const pairedCB: number[] = [];
 
   for (let day = 1; day <= daysCount; day++) {
     const dateKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const logA = metricLogs.find((l) => l.date === dateKey && l.metricId === metricA.id);
     const logB = metricLogs.find((l) => l.date === dateKey && l.metricId === metricB.id);
+    const logC = metricC ? metricLogs.find((l) => l.date === dateKey && l.metricId === metricC.id) : undefined;
     if (logA) dataA.push({ value: normalize(logA.value, metricA.minVal, metricA.maxVal), label: String(day) });
     if (logB) dataB.push({ value: normalize(logB.value, metricB.minVal, metricB.maxVal), label: String(day) });
-    if (logA && logB) {
-      pairedA.push(logA.value);
-      pairedB.push(logB.value);
-    }
+    if (logC && metricC) dataC.push({ value: normalize(logC.value, metricC.minVal, metricC.maxVal), label: String(day) });
+    if (logA && logB) { pairedA.push(logA.value); pairedB.push(logB.value); }
+    if (logA && logC) { pairedAC.push(logA.value); pairedCA.push(logC.value); }
+    if (logB && logC) { pairedBC.push(logB.value); pairedCB.push(logC.value); }
   }
 
-  const hasData = dataA.length > 0 || dataB.length > 0;
-  const r = pearson(pairedA, pairedB);
-  const observation = pearsonObservation(r, metricA.name, metricB.name);
+  const hasData = dataA.length > 0 || dataB.length > 0 || dataC.length > 0;
+  const rAB = pearson(pairedA, pairedB);
+  const rAC = metricC ? pearson(pairedAC, pairedCA) : null;
+  const rBC = metricC ? pearson(pairedBC, pairedCB) : null;
+  const obsAB = pearsonObservation(rAB, metricA.name, metricB.name);
+  const obsAC = metricC ? pearsonObservation(rAC, metricA.name, metricC.name) : null;
+  const obsBC = metricC ? pearsonObservation(rBC, metricB.name, metricC.name) : null;
 
   return (
     <View style={styles.container}>
@@ -93,6 +104,14 @@ export function CorrelationChart({ year, month, metricLogs, metricA, metricB }: 
             {metricB.name.toUpperCase()}
           </Text>
         </View>
+        {metricC ? (
+          <View style={styles.legendItem}>
+            <View style={[styles.dot, { backgroundColor: t.ink.black }]} />
+            <Text style={[styles.legendText, { fontFamily: FONT_MONO, color: t.faded, fontSize: 10 }]}>
+              {metricC.name.toUpperCase()}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Chart */}
@@ -103,6 +122,7 @@ export function CorrelationChart({ year, month, metricLogs, metricA, metricB }: 
             series={[
               { points: dataA, color: t.ink.blue },
               { points: dataB, color: t.ink.red },
+              ...(metricC ? [{ points: dataC, color: t.ink.black }] : []),
             ]}
             width={width}
             height={200}
@@ -113,15 +133,25 @@ export function CorrelationChart({ year, month, metricLogs, metricA, metricB }: 
         ) : null}
       </View>
 
-      {/* Pearson observation */}
+      {/* Pearson observation(s) */}
       <View style={[styles.observationCard, { borderColor: t.rule, borderLeftColor: t.accent, backgroundColor: t.dark ? 'rgba(139,111,71,0.08)' : 'rgba(139,111,71,0.06)' }]}>
         <Text style={{ fontFamily: FONT_MONO, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: t.accent, marginBottom: 4 }}>
-          OBSERVATION
+          {metricC ? 'TRIPLE OBSERVATION' : 'OBSERVATION'}
         </Text>
         <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.ink.black, lineHeight: 20 }}>
-          {observation}
+          {obsAB}
         </Text>
-        <Text style={{ fontFamily: FONT_MONO, fontSize: 9, color: t.faded, marginTop: 6, letterSpacing: 1 }}>
+        {obsAC ? (
+          <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.ink.black, lineHeight: 20, marginTop: 6 }}>
+            {obsAC}
+          </Text>
+        ) : null}
+        {obsBC ? (
+          <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.ink.black, lineHeight: 20, marginTop: 6 }}>
+            {obsBC}
+          </Text>
+        ) : null}
+        <Text style={{ fontFamily: FONT_MONO, fontSize: 9, color: t.faded, marginTop: 8, letterSpacing: 1 }}>
           VALUES NORMALIZED 0–100 FOR COMPARISON
         </Text>
       </View>

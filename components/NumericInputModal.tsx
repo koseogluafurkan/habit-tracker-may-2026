@@ -36,8 +36,20 @@ export function NumericInputModal({
           <TextInput
             style={[styles.input, { borderColor: t.rule, color: t.ink.black, backgroundColor: t.paperDeep, fontFamily: FONT_BODY }]}
             value={value}
-            onChangeText={setValue}
+            onChangeText={(text) => {
+              // Strip any non-numeric characters except a single decimal point and a leading minus.
+              let cleaned = text.replace(/[^0-9.\-]/g, '');
+              // Only allow a single leading '-'
+              cleaned = cleaned.replace(/(?!^)-/g, '');
+              // Only allow a single '.'
+              const firstDot = cleaned.indexOf('.');
+              if (firstDot !== -1) {
+                cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+              }
+              setValue(cleaned);
+            }}
             keyboardType="decimal-pad"
+            inputMode="decimal"
             placeholder="Enter value"
             placeholderTextColor={t.faded}
             autoFocus={Platform.OS === 'web'}

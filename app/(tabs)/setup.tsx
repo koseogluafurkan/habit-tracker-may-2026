@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 
 import { DoubleRule } from '@/components/journal/atoms/DoubleRule';
 import { GridOverlay } from '@/components/journal/atoms/GridOverlay';
+import { MyFoundationSection } from '@/components/setup/MyFoundationSection';
 import {
   FONT_BODY,
   FONT_HEADING,
@@ -261,9 +262,17 @@ export default function SetupScreen() {
                     {
                       borderColor: active ? t.ink.black : t.rule,
                       backgroundColor: active ? t.ink.black : 'transparent',
+                      borderWidth: active ? 2 : 1,
                     },
                   ]}>
-                  <Text style={{ fontFamily: FONT_MONO, fontSize: 10, letterSpacing: 1, color: active ? t.paper : t.faded }}>
+                  <Text style={{
+                    fontFamily: FONT_MONO,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                    fontWeight: '700',
+                    // High-contrast: active = paper-on-black, inactive = black-on-paper (not faded)
+                    color: active ? t.paper : t.ink.black,
+                  }}>
                     {type.label.toUpperCase()}
                   </Text>
                 </Pressable>
@@ -280,9 +289,18 @@ export default function SetupScreen() {
           </Pressable>
         </View>
 
-        {/* §II Month Notes */}
+        {/* §II My Foundation */}
         <SectionLabel color={t.faded} borderColor={t.rule}>
-          §II · MONTH NOTES · FOCUS + INTENTIONS
+          §II · MY FOUNDATION · ANTI-GOALS · BELIEFS · 3-YEAR
+        </SectionLabel>
+        <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.faded, marginBottom: t.sp.sm, lineHeight: 20 }}>
+          The bedrock. Revisited at the start of each month.
+        </Text>
+        <MyFoundationSection />
+
+        {/* §III Month Notes */}
+        <SectionLabel color={t.faded} borderColor={t.rule}>
+          §III · MONTH NOTES · FOCUS + INTENTIONS
         </SectionLabel>
 
         <Text style={{ fontFamily: FONT_MONO, fontSize: t.fs.meta, letterSpacing: 2, textTransform: 'uppercase', color: t.accent, marginBottom: 4 }}>
@@ -327,9 +345,9 @@ export default function SetupScreen() {
           </Text>
         </Pressable>
 
-        {/* §III Appearance */}
+        {/* §IV Appearance */}
         <SectionLabel color={t.faded} borderColor={t.rule}>
-          §III · APPEARANCE
+          §IV · APPEARANCE
         </SectionLabel>
 
         {/* Follow system */}
@@ -400,7 +418,7 @@ export default function SetupScreen() {
                       backgroundColor: active ? t.ink.black : 'transparent',
                     },
                   ]}>
-                  <Text style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: 1, color: active ? t.paper : t.faded }}>
+                  <Text style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: 1, fontWeight: '700', color: active ? t.paper : t.ink.black }}>
                     {d.toUpperCase()}
                   </Text>
                 </Pressable>
@@ -432,7 +450,7 @@ export default function SetupScreen() {
                       backgroundColor: active ? t.ink.black : 'transparent',
                     },
                   ]}>
-                  <Text style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: 1, color: active ? t.paper : t.faded }}>
+                  <Text style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: 1, fontWeight: '700', color: active ? t.paper : t.ink.black }}>
                     {label.toUpperCase()}
                   </Text>
                 </Pressable>
@@ -441,9 +459,9 @@ export default function SetupScreen() {
           </View>
         </View>
 
-        {/* §IV Data */}
+        {/* §V Data */}
         <SectionLabel color={t.faded} borderColor={t.rule}>
-          §IV · DATA BACKUP
+          §V · DATA BACKUP
         </SectionLabel>
 
         <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.faded, marginBottom: t.sp.md, lineHeight: 20 }}>
