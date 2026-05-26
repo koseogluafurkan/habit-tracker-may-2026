@@ -487,23 +487,19 @@ export function DayJournalView() {
     setSleepScore(entry?.sleepScore != null ? String(entry.sleepScore) : '');
   }, [entry, selectedDate]);
 
-  // Fetch tomorrow's reminder (for the "Tomorrow's reminder" field on TODAY)
-  // and yesterday's reminder (carryover banner showing what was planned for today)
+  // Fetch tomorrow's reminder (for the "Tomorrow's reminder" field on TODAY).
+  // The carryover banner reads from the CURRENT day's own dayReminder — that
+  // value is what was written on the previous day's "Tomorrow's reminder" field
+  // (because that field writes forward).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const ops = await import('@/db/operations');
       const tomorrowDate = shiftDay(selectedDate, 1);
-      const yesterdayDate = shiftDay(selectedDate, -1);
-      const [tEntry, yEntry] = await Promise.all([
-        ops.getDayEntryByDate(tomorrowDate),
-        ops.getDayEntryByDate(yesterdayDate),
-      ]);
+      const tEntry = await ops.getDayEntryByDate(tomorrowDate);
       if (cancelled) return;
       setTomorrowReminder(tEntry?.dayReminder ?? '');
-      // Show yesterday's reminder as carryover IFF today's own reminder is empty
-      // (yesterday's note "for tomorrow" effectively saved to today, so we display it)
-      setCarryover(yEntry?.dayReminder ?? '');
+      setCarryover(entry?.dayReminder ?? '');
     })();
     return () => { cancelled = true; };
   }, [selectedDate, entry]);
@@ -588,22 +584,23 @@ export function DayJournalView() {
         {/* Sticky reminders top banner — items always in view */}
         {today ? <StickyRemindersBanner /> : null}
 
-        {/* Carryover from yesterday's planning */}
-        {today && carryoverFromYesterday.trim() ? (
+        {/* Carryover note: today's own dayReminder = what was written on the
+            previous day's "Tomorrow's reminder" field. Show prominently. */}
+        {!future && carryoverFromYesterday.trim() ? (
           <View style={{
             marginHorizontal: 0,
             marginBottom: 12,
             padding: 12,
-            borderWidth: 1,
-            borderLeftWidth: 3,
-            borderColor: t.rule,
+            borderWidth: 1.5,
+            borderLeftWidth: 4,
+            borderColor: t.accent,
             borderLeftColor: t.accent,
-            backgroundColor: t.dark ? 'rgba(216,182,106,0.10)' : 'rgba(139,111,71,0.08)',
+            backgroundColor: t.dark ? 'rgba(216,182,106,0.16)' : 'rgba(139,111,71,0.10)',
           }}>
-            <Text style={{ fontFamily: FONT_MONO, fontSize: t.fs.meta, letterSpacing: 2, color: t.accent, marginBottom: 4 }}>
-              ← FROM YESTERDAY'S NOTE FOR TODAY
+            <Text style={{ fontFamily: FONT_MONO, fontSize: t.fs.meta + 1, letterSpacing: 2, color: t.dark ? t.paperHi : t.accent, marginBottom: 4, fontWeight: '700' }}>
+              ← NOTE PLANNED FOR {today ? 'TODAY' : 'THIS DAY'}
             </Text>
-            <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 14, color: t.ink.black, lineHeight: 20 }}>
+            <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 15, color: t.ink.black, lineHeight: 22 }}>
               {carryoverFromYesterday}
             </Text>
           </View>
