@@ -6,18 +6,20 @@
 
 ## Current State (as of 2026-05-26)
 
-**Sprints 1-4 are complete.** App is feature-complete and live.
+**Sprints 1-4 complete + Iteration 2 shipped.** App is feature-complete and live.
 
-| Sprint | Title | Status |
+| Sprint / Iteration | Title | Status |
 |--------|-------|--------|
 | 1 | My Foundation (PersonalSetup CRUD) | ✅ |
 | 2 | First-time Onboarding + Monthly Foundation Revisit | ✅ |
 | 3 | Hyper-Focus month concept (Month + Daily banners) | ✅ |
 | 4 | Triple correlation graph (Sleep / Activation / Lost Evening) | ✅ |
+| Iter 2 | Morning tab + Sticky Reminders + Countdowns Dock + UX pass | ✅ |
 | — | Morning Ritual Modal (revisit yesterday) | ✅ |
 | — | Claude Design redesign (paper-grid theme system) | ✅ |
 | — | Supabase migration (single-user, no auth) | ✅ |
-| — | Vercel deploy | ✅ |
+| — | Vercel deploy + Analytics + Speed Insights | ✅ |
+| — | Theme settings synced across devices via Supabase | ✅ |
 
 ## Architecture (Important — read before editing)
 
@@ -41,17 +43,22 @@ This means **you can write new operations the same way as before** — no need t
 ### Where things live
 ```
 app/
-  (tabs)/index.tsx     → DayJournalView (Daily)
-  (tabs)/journal.tsx   → Month spread (memorable moments + habit matrix + hyper-focus card)
+  (tabs)/morning.tsx   → Morning routine tab (sleep + intention + checklist)
+  (tabs)/index.tsx     → DayJournalView (Daily — sticky reminders + carryover + habits + sleep + metrics)
+  (tabs)/journal.tsx   → Month spread (aligned moments + reminders left page · matrix right · hyper-focus top sticky)
   (tabs)/graphs.tsx    → Sleep chart + dual/triple correlation
-  (tabs)/setup.tsx     → §I Habits, §II My Foundation, §III Month notes, §IV Appearance, §V Backup
-  _layout.tsx          → ThemeProvider + DatabaseProvider + OnboardingModal mount
+  (tabs)/setup.tsx     → §I Habits (multi-month) · §II My Foundation · §III Month notes · §IV Sticky Reminders ·
+                         §V Countdowns · §VI Morning Routine · §VII Metrics · §VIII Appearance · §IX Backup
+  _layout.tsx          → ThemeProvider + DatabaseProvider + OnboardingModal + CountdownsDock + Vercel Analytics
 
 components/
   journal/atoms/       → InkCheck, GridOverlay, DoubleRule, SectionHeader, Eyebrow, PaperCard, StatSlot
   journal/             → DayJournalView, MorningRevisitModal, HabitMatrix, MemorableMoments, ...
-  onboarding/          → OnboardingModal (Sprint 2 wizard + monthly revisit)
-  setup/               → MyFoundationSection (Sprint 1 CRUD UI)
+  onboarding/          → OnboardingModal (3-step wizard w/ 6m/1y/3y/5y horizon picker + monthly revisit)
+  setup/               → BaselineHabitsSection (multi-month), MyFoundationSection, StickyRemindersSection,
+                         CountdownsSection, MorningRoutineSection, MetricsSection
+  countdowns/          → CountdownsDock (floating chips above tab bar), CountdownEditModal
+  StickyRemindersBanner.tsx
   charts/              → SvgLineChart, SleepChart, CorrelationChart (Pearson observations)
 
 contexts/
@@ -115,7 +122,10 @@ Anything prefixed `EXPO_PUBLIC_*` gets inlined at build time.
 ## Supabase
 
 - **Project:** `rnckvcvdrndzwxysegui` ("Habit Tracker", ap-southeast-1)
-- **Tables:** habits, day_entries, habit_logs (with `note`), metric_definitions, metric_logs, month_config (with `hyper_focus`), personal_setups
+- **Tables (13):**
+  - Core: habits, day_entries, habit_logs (with `note`), metric_definitions, metric_logs
+  - Config: month_config (with `hyper_focus`), personal_setups (with `goal_horizon`)
+  - Iter 2: sticky_reminders, countdowns, user_settings, morning_routine_items, morning_logs, day_intentions
 - **RLS:** enabled, permissive `for all using (true)` policies — fine for single-user but **do NOT** add more users without re-doing auth
 - **Migrations:** apply via Supabase MCP `apply_migration` or SQL editor. Snake_case in DB, camelCase in TS (mappers in `db/idb.ts`)
 

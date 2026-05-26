@@ -20,10 +20,16 @@
 ### Tabs
 | Tab | Route | Purpose |
 |-----|-------|---------|
-| **Daily** | `/(tabs)/` | Today's journal. Week strip + calendar + memorable moment + habits with notes + sleep + metrics + hyper-focus banner |
-| **Month** | `/(tabs)/journal` | Monthly spread (memorable moments list + habit matrix + HyperFocusCard) |
-| **Graphs** | `/(tabs)/graphs` | Sleep chart + dual/triple metric correlation with Pearson observations |
-| **Setup** | `/(tabs)/setup` | §I Habits · §II My Foundation · §III Month Notes (incl. hyper-focus) · §IV Appearance · §V Data Backup |
+| **Morning** | `/(tabs)/morning` | Yesterday's sleep + today's intention + morning routine checklist |
+| **Daily** | `/(tabs)/` | Today's journal. Sticky reminders banner · carryover from yesterday · week strip · memorable moment · habits w/ notes · sleep · metrics · hyper-focus |
+| **Month** | `/(tabs)/journal` | Monthly spread — aligned moments+reminders left, habit matrix right, hyper-focus top |
+| **Graphs** | `/(tabs)/graphs` | Sleep chart + dual/triple correlation w/ Pearson observations |
+| **Setup** | `/(tabs)/setup` | §I Habits (multi-month) · §II Foundation · §III Month Notes · §IV Sticky Reminders · §V Countdowns · §VI Morning Routine · §VII Metrics · §VIII Appearance · §IX Backup |
+
+### Persistent UI surfaces
+- **CountdownsDock** — horizontal chips above the tab bar showing live "Xd" for each countdown. Hidden when 0 countdowns. Tap to edit
+- **StickyRemindersBanner** — top of Daily, shows always-in-view reminders that survive past their due date until checked off
+- **OnboardingModal** — first-launch wizard (3 steps: anti-goal, limiting belief, long-term goal w/ horizon picker) + monthly foundation revisit on day 1-3
 
 ---
 
@@ -151,7 +157,13 @@ habit-tracker-claude/
 | `metric_definitions` | id, name, scale (integer/float), min_val, max_val, sort_order |
 | `metric_logs` | id, day_entry_id (FK CASCADE), metric_id (FK CASCADE), value, UNIQUE(day_entry_id, metric_id) |
 | `month_config` | id, year, month, next_month_ideas, reminder_message, **hyper_focus**, UNIQUE(year, month) |
-| `personal_setups` | id, type (anti-goal/limiting-belief/yearly-goal), text, sort_order, target_date, status (active/done), created_at |
+| `personal_setups` | id, type (anti-goal/limiting-belief/yearly-goal), text, sort_order, target_date, status (active/done), **goal_horizon** (6m/1y/3y/5y/null), created_at |
+| `sticky_reminders` | id, text, topic, added_date, due_date, completed, sort_order, created_at |
+| `countdowns` | id, label, target_date, icon, sort_order, created_at |
+| `user_settings` | id ('singleton'), tone_key, density, aesthetic, follow_system, updated_at |
+| `morning_routine_items` | id, text, sort_order, active, created_at |
+| `morning_logs` | id, date, item_id (FK CASCADE), completed, UNIQUE(date, item_id) |
+| `day_intentions` | id, date (unique), intention, updated_at |
 
 ### TypeScript types (`db/schema.ts`)
 

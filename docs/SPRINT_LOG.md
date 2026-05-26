@@ -4,6 +4,61 @@ Newest first. Each sprint is a self-contained feature shipped end-to-end.
 
 ---
 
+## Iteration 2 — Morning tab + Sticky Reminders + Countdowns + UX pass ✅
+**Shipped:** 2026-05-26 (late)
+
+A broad batch covering a new tab, two new always-visible UI surfaces, and
+~10 UX/bug fixes from user feedback.
+
+### New features
+- **Morning tab** (`app/(tabs)/morning.tsx`): yesterday's sleep summary,
+  today's "one priority" intention input, custom checklist with progress bar.
+  Items managed in Setup §VI. Stored in `morning_routine_items` + `morning_logs`
+  + `day_intentions` tables
+- **Sticky Reminders** (`components/StickyRemindersBanner.tsx`): always-in-view
+  items that remain visible past their due date until manually checked off.
+  Banner top of Daily. CRUD in Setup §IV. Stored in `sticky_reminders` table
+- **Countdowns Dock** (`components/countdowns/CountdownsDock.tsx`): floating
+  horizontal scroller above the tab bar, shows live `Xd` chips for each
+  countdown. Hidden when 0 countdowns (no wasted space). Tap chip → edit/delete
+  modal. CRUD in Setup §V. Stored in `countdowns` table
+- **Metrics CRUD in Setup §VII**: add / remove / configure scale + min/max
+- **Future-month habit selection** (`BaselineHabitsSection`): month navigation
+  inside Setup §I lets you set up habits for any past/current/future month
+- **Theme settings sync across devices**: `user_settings` table (singleton row).
+  `ThemeContext` hydrates from cloud on mount, fire-and-forget cloud sync on change
+- **Vercel Analytics + Speed Insights** wired in `app/_layout.tsx`
+- **Onboarding goal horizon picker**: 6m / 1y / 3y / 5y selector on the
+  yearly-goal step; persisted in `personal_setups.goal_horizon`
+
+### UX/bug fixes
+- Calendar icon enlarged 2x with accent border + "PICK" label
+- Hyper-focus banner: stronger blue fill + paper-color eyebrow in dark mode
+  for readability
+- On Month view: hyper-focus moved to TOP, same-row as month/year title
+- Save Month Settings: inline "✓ Saved" feedback (Alert.alert was easy to miss on PWA)
+- Tomorrow's reminder carryover: writes to TOMORROW's `dayReminder`; appears
+  next day as top banner "← FROM YESTERDAY'S NOTE FOR TODAY"
+- iPad layout: `contentMaxWidth` raised to 1400 (was 1100). New "wide"
+  breakpoint at 1440+ uses 1600
+- Month spread: shared `DayRow` component ensures left+right pages align by day.
+  Reminders show on left page beside memorable moments
+- Habit Matrix: dynamic cell sizing (22-48px) based on width / habit count
+- High-contrast text colors throughout — no more faded-on-faded buttons
+
+### Schema additions
+- New tables: sticky_reminders, countdowns, user_settings, morning_routine_items,
+  morning_logs, day_intentions
+- New column: personal_setups.goal_horizon
+- Migration: `add_reminders_countdowns_user_settings`
+- New mappers + diff-sync in `db/idb.ts`
+- New CRUD in `db/operations.ts`: `getStickyReminders`/`add`/`update`/`delete`,
+  `getCountdowns`/`add`/`update`/`delete`, `getUserSettings`/`upsert`,
+  `getMorningRoutineItems`/`add`/`update`/`delete`, `getMorningLogs`,
+  `toggleMorningLog`, `getDayIntention`, `setDayIntention`, `updateMetricDefinition`
+
+---
+
 ## Sprint 4 — Advanced Correlation Graph ✅
 **Shipped:** 2026-05-26
 
