@@ -107,8 +107,8 @@ export default function GraphsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}>
 
         {/* Sleep section */}
-        <View style={[styles.sectionLabel, { borderBottomColor: t.rule }]}>
-          <Text style={[styles.sectionLabelText, { fontFamily: FONT_MONO, color: t.faded }]}>
+        <View style={[styles.sectionLabel, { borderBottomColor: t.ink.black }]}>
+          <Text style={[styles.sectionLabelText, { fontFamily: FONT_MONO, color: t.ink.black }]}>
             01 · SLEEP GRAPH · HOURS / NIGHT
           </Text>
         </View>
@@ -118,8 +118,8 @@ export default function GraphsScreen() {
         )}
 
         {/* Correlation section */}
-        <View style={[styles.sectionLabel, { borderBottomColor: t.rule, marginTop: t.sp.xl }]}>
-          <Text style={[styles.sectionLabelText, { fontFamily: FONT_MONO, color: t.faded }]}>
+        <View style={[styles.sectionLabel, { borderBottomColor: t.ink.black, marginTop: t.sp.xl }]}>
+          <Text style={[styles.sectionLabelText, { fontFamily: FONT_MONO, color: t.ink.black }]}>
             02 · LIFESTYLE CORRELATION {tripleMode ? '· TRIPLE' : '· DUAL'}
           </Text>
         </View>
@@ -307,12 +307,13 @@ const styles = StyleSheet.create({
   sectionLabel: {
     paddingBottom: 8,
     marginBottom: 12,
-    borderBottomWidth: 1,
+    borderBottomWidth: 1.5,
   },
   sectionLabelText: {
-    fontSize: 9,
-    letterSpacing: 2,
+    fontSize: 11,
+    letterSpacing: 1.8,
     textTransform: 'uppercase',
+    fontWeight: '700',
   },
   chip: {
     paddingHorizontal: 12,

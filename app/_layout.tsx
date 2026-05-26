@@ -3,12 +3,11 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { View } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { AddToHomeScreenBanner } from '@/components/AddToHomeScreenBanner';
-import { CountdownsDock } from '@/components/countdowns/CountdownsDock';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import { DaySelectionProvider } from '@/contexts/DaySelectionContext';
 import { DatabaseProvider, useDatabase } from '@/contexts/DatabaseContext';
@@ -35,13 +34,8 @@ SplashScreen.preventAutoHideAsync();
 function AppShell() {
   const { contentMaxWidth } = useResponsive();
   const t = useTheme();
-  const insets = useSafeAreaInsets();
   const { ready } = useDatabase();
   const { mode, dismiss } = useOnboarding();
-
-  // CountdownsDock sits above the tab bar. Bottom offset = safe-area + tab bar height (~60)
-  const tabBarHeight = 60;
-  const dockBottom = insets.bottom + tabBarHeight;
 
   return (
     <View
@@ -59,9 +53,6 @@ function AppShell() {
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
-
-      {/* Live countdowns dock — hidden when 0 countdowns */}
-      <CountdownsDock bottomOffset={dockBottom} />
 
       {/* Onboarding: first-run wizard + monthly foundation revisit */}
       {ready && mode ? (

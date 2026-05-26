@@ -25,11 +25,12 @@ export function SectionHeader({ eyebrow, title, color, action, size = 'h2', styl
             <Text
               style={{
                 fontFamily: FONT_MONO,
-                fontSize: t.fs.meta,
-                letterSpacing: 2.2,
+                fontSize: Math.max(t.fs.meta, 10),
+                letterSpacing: 2,
                 textTransform: 'uppercase',
+                fontWeight: '700',
                 color: t.accent,
-                marginBottom: 2,
+                marginBottom: 3,
               }}>
               {eyebrow}
             </Text>

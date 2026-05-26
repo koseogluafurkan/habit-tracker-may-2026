@@ -393,7 +393,7 @@ export default function JournalScreen() {
           <View style={{ width: 32 }} />
           {showMoments ? (
             <View style={{ flex: 1, paddingHorizontal: 10, paddingBottom: 8, borderRightWidth: 1, borderRightColor: t.rule }}>
-              <Text style={{ fontFamily: FONT_MONO, fontSize: 9, letterSpacing: 2, color: t.faded }}>
+              <Text style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: 1.8, color: t.ink.black, fontWeight: '700' }}>
                 {isDesktop ? 'LEFT PAGE / MEMORABLE MOMENTS + REMINDERS' : 'MOMENTS + REMINDERS'}
               </Text>
             </View>
@@ -404,7 +404,7 @@ export default function JournalScreen() {
               paddingHorizontal: 4, paddingBottom: 4,
             }}>
               {habits.length === 0 ? (
-                <Text style={{ fontFamily: FONT_MONO, fontSize: 9, letterSpacing: 2, color: t.faded, padding: 8 }}>
+                <Text style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: 1.8, color: t.ink.black, fontWeight: '700', padding: 8 }}>
                   ADD HABITS IN SETUP
                 </Text>
               ) : (

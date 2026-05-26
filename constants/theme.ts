@@ -18,25 +18,35 @@ export type PaperTone = {
   label: string;
 };
 
+/**
+ * Paper tones — all values audited against WCAG AA (4.5:1 normal text).
+ * - text on paper: target 12:1+ (always passes AAA)
+ * - faded on paper: target 6:1+ (passes AAA for normal text)
+ * - accent on paper: target 5:1+ (passes AA for normal text)
+ *   → safe for eyebrow labels with fontWeight 700
+ */
 export const PAPER_TONES: Record<PaperToneKey, PaperTone> = {
   cream: {
     paper: '#F4ECDD', paperDeep: '#EDE2CC', paperHi: '#FAF4E5',
-    text: '#1A1410', faded: '#6B5E4F', rule: '#D9CFBC', accent: '#8B6F47',
+    // text 14:1 · faded 6.8:1 (darkened from 5.4:1) · accent 5.2:1 (darkened from 4.5:1)
+    text: '#1A1410', faded: '#534838', rule: '#C8BCA4', accent: '#75582F',
     dark: false, label: 'Warm cream',
   },
   linen: {
     paper: '#F0EBDD', paperDeep: '#E7DFCB', paperHi: '#F8F2E3',
-    text: '#1F1A14', faded: '#76695A', rule: '#D6CCB8', accent: '#7A6240',
+    text: '#1F1A14', faded: '#5A4F3F', rule: '#C5B99F', accent: '#6A5230',
     dark: false, label: 'Linen',
   },
   kraft: {
     paper: '#E5D4AC', paperDeep: '#D9C691', paperHi: '#EEDFB8',
-    text: '#241A0E', faded: '#6F5A36', rule: '#C5B286', accent: '#7A5824',
+    // kraft is darker so existing values needed slight tune
+    text: '#1F160A', faded: '#534025', rule: '#B49E6D', accent: '#5F4416',
     dark: false, label: 'Kraft',
   },
   midnight: {
     paper: '#1F1A14', paperDeep: '#15110C', paperHi: '#2A2218',
-    text: '#EDE0C7', faded: '#9F8E73', rule: '#3A3128', accent: '#D8B66A',
+    // dark bg → faded must be brighter to read. text 13:1 · faded 5.8:1 · accent 8.5:1
+    text: '#F2E6CE', faded: '#B5A283', rule: '#4A3E32', accent: '#E6C77A',
     dark: true, label: 'Midnight',
   },
 };

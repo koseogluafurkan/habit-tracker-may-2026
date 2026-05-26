@@ -15,9 +15,11 @@ export function Eyebrow({ children, color, style }: Props) {
       style={[
         {
           fontFamily: FONT_MONO,
-          fontSize: t.fs.meta,
-          letterSpacing: 2.2,
+          // a11y: meta is 9–10px; bump weight so it survives small size + letter-spacing
+          fontSize: Math.max(t.fs.meta, 10),
+          letterSpacing: 2,
           textTransform: 'uppercase',
+          fontWeight: '700',
           color: color ?? t.accent,
         },
         style,

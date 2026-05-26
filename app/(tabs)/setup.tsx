@@ -148,13 +148,13 @@ export default function SetupScreen() {
         keyboardShouldPersistTaps="handled">
 
         {/* §I Baseline Habits — now supports future month selection */}
-        <SectionLabel color={t.faded} borderColor={t.rule}>
+        <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
           §I · BASELINE HABITS · MULTI-MONTH
         </SectionLabel>
         <BaselineHabitsSection />
 
         {/* §II My Foundation */}
-        <SectionLabel color={t.faded} borderColor={t.rule}>
+        <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
           §II · MY FOUNDATION · ANTI-GOALS · BELIEFS · LONG-TERM GOALS
         </SectionLabel>
         <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.faded, marginBottom: t.sp.sm, lineHeight: 20 }}>
@@ -163,7 +163,7 @@ export default function SetupScreen() {
         <MyFoundationSection />
 
         {/* §III Month Notes */}
-        <SectionLabel color={t.faded} borderColor={t.rule}>
+        <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
           §III · MONTH NOTES · FOCUS + INTENTIONS
         </SectionLabel>
 
@@ -216,31 +216,31 @@ export default function SetupScreen() {
         ) : null}
 
         {/* §IV Sticky Reminders */}
-        <SectionLabel color={t.faded} borderColor={t.rule}>
+        <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
           §IV · STICKY REMINDERS · ALWAYS-IN-VIEW
         </SectionLabel>
         <StickyRemindersSection />
 
         {/* §V Custom Countdowns */}
-        <SectionLabel color={t.faded} borderColor={t.rule}>
+        <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
           §V · COUNTDOWNS · DYNAMIC TAB CHIPS
         </SectionLabel>
         <CountdownsSection />
 
         {/* §VI Morning Routine */}
-        <SectionLabel color={t.faded} borderColor={t.rule}>
+        <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
           §VI · MORNING ROUTINE · CHECKLIST
         </SectionLabel>
         <MorningRoutineSection />
 
         {/* §VII Metrics */}
-        <SectionLabel color={t.faded} borderColor={t.rule}>
+        <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
           §VII · METRICS · TRACKED ON DAILY
         </SectionLabel>
         <MetricsSection />
 
         {/* §VIII Appearance */}
-        <SectionLabel color={t.faded} borderColor={t.rule}>
+        <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
           §VIII · APPEARANCE · SYNCED ACROSS DEVICES
         </SectionLabel>
 
@@ -331,7 +331,7 @@ export default function SetupScreen() {
         </View>
 
         {/* §IX Data */}
-        <SectionLabel color={t.faded} borderColor={t.rule}>
+        <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
           §IX · DATA BACKUP
         </SectionLabel>
 
@@ -365,8 +365,8 @@ const styles = StyleSheet.create({
   header: { paddingVertical: 12 },
   scroll: { flex: 1 },
   content: { padding: 20 },
-  sectionLabel: { paddingBottom: 8, marginBottom: 12, borderBottomWidth: 1, marginTop: 28 },
-  sectionLabelText: { fontSize: 9, letterSpacing: 2, textTransform: 'uppercase' },
+  sectionLabel: { paddingBottom: 8, marginBottom: 12, borderBottomWidth: 1.5, marginTop: 32 },
+  sectionLabelText: { fontSize: 11, letterSpacing: 1.8, textTransform: 'uppercase', fontWeight: '700' },
   inputField: { borderWidth: 1, borderLeftWidth: 2, padding: 12, fontSize: 15, lineHeight: 22 },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
   optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
