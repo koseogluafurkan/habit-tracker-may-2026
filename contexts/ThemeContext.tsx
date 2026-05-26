@@ -3,6 +3,7 @@ import { useColorScheme } from 'react-native';
 
 import type { AestheticKey, DensityKey, PaperToneKey, ResolvedTheme } from '@/constants/theme';
 import { resolveTheme } from '@/constants/theme';
+import { getUserSettings, upsertUserSettings } from '@/db/operations';
 
 const STORAGE_KEY = 'journal.theme';
 
@@ -31,7 +32,7 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function loadSettings(): ThemeSettings {
+function loadLocalSettings(): ThemeSettings {
   if (typeof localStorage === 'undefined') return DEFAULT_SETTINGS;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -42,7 +43,7 @@ function loadSettings(): ThemeSettings {
   }
 }
 
-function saveSettings(settings: ThemeSettings): void {
+function saveLocalSettings(settings: ThemeSettings): void {
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -51,9 +52,35 @@ function saveSettings(settings: ThemeSettings): void {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
-  const [settings, setSettings] = useState<ThemeSettings>(loadSettings);
+  // Start from localStorage for instant first paint, then hydrate from Supabase
+  const [settings, setSettings] = useState<ThemeSettings>(loadLocalSettings);
+  const [hydratedFromCloud, setHydratedFromCloud] = useState(false);
 
-  // If followSystem is true, pick cream (light) or midnight (dark) based on OS
+  // Hydrate from Supabase on mount — cloud settings win over local
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cloud = await getUserSettings();
+        if (!cancelled && cloud) {
+          const next: ThemeSettings = {
+            toneKey: (cloud.toneKey as PaperToneKey) || DEFAULT_SETTINGS.toneKey,
+            density: (cloud.density as DensityKey) || DEFAULT_SETTINGS.density,
+            aesthetic: (cloud.aesthetic as AestheticKey) || DEFAULT_SETTINGS.aesthetic,
+            followSystem: cloud.followSystem,
+          };
+          setSettings(next);
+          saveLocalSettings(next);
+        }
+      } catch (e) {
+        // Cloud unreachable — keep local. Will retry next mount.
+      } finally {
+        if (!cancelled) setHydratedFromCloud(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const effectiveTone: PaperToneKey = settings.followSystem
     ? systemScheme === 'dark' ? 'midnight' : 'cream'
     : settings.toneKey;
@@ -63,15 +90,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const update = useCallback((patch: Partial<ThemeSettings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
-      saveSettings(next);
+      saveLocalSettings(next);
+      // Fire-and-forget cloud sync — don't block UI
+      upsertUserSettings(next).catch((e) => console.warn('Theme cloud sync failed:', e));
       return next;
     });
   }, []);
 
-  const setTone       = useCallback((toneKey: PaperToneKey)     => update({ toneKey, followSystem: false }), [update]);
-  const setDensity    = useCallback((density: DensityKey)        => update({ density }), [update]);
-  const setAesthetic  = useCallback((aesthetic: AestheticKey)    => update({ aesthetic }), [update]);
-  const setFollowSystem = useCallback((followSystem: boolean)    => update({ followSystem }), [update]);
+  const setTone         = useCallback((toneKey: PaperToneKey)  => update({ toneKey, followSystem: false }), [update]);
+  const setDensity      = useCallback((density: DensityKey)     => update({ density }), [update]);
+  const setAesthetic    = useCallback((aesthetic: AestheticKey) => update({ aesthetic }), [update]);
+  const setFollowSystem = useCallback((followSystem: boolean)   => update({ followSystem }), [update]);
 
   return (
     <ThemeContext.Provider value={{ theme, settings, setTone, setDensity, setAesthetic, setFollowSystem }}>

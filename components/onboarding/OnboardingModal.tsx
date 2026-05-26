@@ -10,7 +10,7 @@ import { FONT_BODY, FONT_HEADING, FONT_MONO } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { addPersonalSetup, getPersonalSetups } from '@/db/operations';
-import type { PersonalSetup, PersonalSetupType } from '@/db/schema';
+import type { GoalHorizon, PersonalSetup, PersonalSetupType } from '@/db/schema';
 
 import { DoubleRule } from '../journal/atoms/DoubleRule';
 import { GridOverlay } from '../journal/atoms/GridOverlay';
@@ -48,11 +48,18 @@ const STEPS: Step[] = [
     type: 'yearly-goal',
     num: '03',
     eyebrow: 'THE HORIZON',
-    title: 'Where you want to be in 3 years',
-    prompt: 'One concrete 3-year goal. We will return to this often.',
-    placeholder: 'Run my own product company…',
+    title: 'A long-term goal',
+    prompt: 'Pick a horizon, then write one concrete goal for it. You can add more in Setup later.',
+    placeholder: 'e.g. "Run my own product company"',
     accent: 'blue',
   },
+];
+
+const HORIZON_OPTIONS: { key: GoalHorizon; label: string; sublabel: string }[] = [
+  { key: '6m', label: '6 months',  sublabel: 'short horizon' },
+  { key: '1y', label: '1 year',    sublabel: 'medium horizon' },
+  { key: '3y', label: '3 years',   sublabel: 'long horizon' },
+  { key: '5y', label: '5 years',   sublabel: 'far horizon' },
 ];
 
 type Props = {
@@ -69,6 +76,8 @@ export function OnboardingModal({ visible, mode, onDismiss }: Props) {
   const [drafts, setDrafts] = useState<Record<PersonalSetupType, string>>({
     'anti-goal': '', 'limiting-belief': '', 'yearly-goal': '',
   });
+  // Selected horizon for the yearly-goal step
+  const [selectedHorizon, setSelectedHorizon] = useState<GoalHorizon>('3y');
   const [existing, setExisting] = useState<PersonalSetup[]>([]);
 
   useEffect(() => {
@@ -90,7 +99,11 @@ export function OnboardingModal({ visible, mode, onDismiss }: Props) {
     if (mode === 'first-run') {
       const draft = drafts[step.type].trim();
       if (draft) {
-        await addPersonalSetup(step.type, draft);
+        await addPersonalSetup(
+          step.type,
+          draft,
+          step.type === 'yearly-goal' ? { goalHorizon: selectedHorizon } : {},
+        );
       }
     }
     if (isLastStep) {
@@ -157,6 +170,46 @@ export function OnboardingModal({ visible, mode, onDismiss }: Props) {
               <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 14, color: t.faded, marginBottom: t.sp.md }}>
                 {step.prompt}
               </Text>
+
+              {/* Horizon picker — only on yearly-goal step */}
+              {step.type === 'yearly-goal' ? (
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={{ fontFamily: FONT_MONO, fontSize: 10, letterSpacing: 1.5, color: t.accent, marginBottom: 8 }}>
+                    HORIZON
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                    {HORIZON_OPTIONS.map((h) => {
+                      const active = selectedHorizon === h.key;
+                      return (
+                        <Pressable
+                          key={h.key}
+                          onPress={() => setSelectedHorizon(h.key)}
+                          style={{
+                            flex: 1, minWidth: 90,
+                            paddingVertical: 12, paddingHorizontal: 8,
+                            borderWidth: active ? 2 : 1,
+                            borderColor: active ? accentColor : t.rule,
+                            backgroundColor: active ? (t.dark ? 'rgba(30,58,138,0.18)' : 'rgba(30,58,138,0.06)') : 'transparent',
+                            alignItems: 'center',
+                          }}>
+                          <Text style={{
+                            fontFamily: FONT_HEADING, fontSize: 18, fontWeight: '700',
+                            color: active ? accentColor : t.ink.black,
+                          }}>
+                            {h.label}
+                          </Text>
+                          <Text style={{
+                            fontFamily: FONT_MONO, fontSize: 9, letterSpacing: 1,
+                            color: t.faded, marginTop: 2, textTransform: 'uppercase',
+                          }}>
+                            {h.sublabel}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
 
               <TextInput
                 style={{

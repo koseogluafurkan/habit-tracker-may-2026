@@ -7,7 +7,7 @@ import { useTabBarStyle } from '@/hooks/useBottomPadding';
 
 function TabIcon({ label, focused, accent, faded }: { label: string; focused: boolean; accent: string; faded: string }) {
   return (
-    <Text style={{ fontSize: 16, opacity: focused ? 1 : 0.55, color: focused ? accent : faded }}>
+    <Text style={{ fontSize: 18, opacity: focused ? 1 : 0.6, color: focused ? accent : faded }}>
       {label}
     </Text>
   );
@@ -28,41 +28,37 @@ export default function TabLayout() {
           borderTopWidth: 1,
           ...tabBarStyle,
         },
-        tabBarItemStyle: {
-          paddingTop: 4,
-          paddingBottom: 2,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontFamily: FONT_MONO,
-          letterSpacing: 1.5,
-          marginBottom: 0,
-          lineHeight: 14,
-        },
-        tabBarIconStyle: {
-          marginBottom: 0,
-        },
+        tabBarItemStyle: { paddingTop: 4, paddingBottom: 2 },
+        tabBarLabelStyle: { fontSize: 10, fontFamily: FONT_MONO, letterSpacing: 1.5, marginBottom: 0, lineHeight: 14 },
+        tabBarIconStyle: { marginBottom: 0 },
         headerShown: false,
       }}>
+      <Tabs.Screen
+        name="morning"
+        options={{
+          title: 'MORNING',
+          tabBarIcon: ({ focused }) => <TabIcon label="☀" focused={focused} accent={t.accent} faded={t.faded} />,
+        }}
+      />
       <Tabs.Screen
         name="index"
         options={{
           title: 'DAILY',
-          tabBarIcon: ({ focused }) => <TabIcon label="☀" focused={focused} accent={t.accent} faded={t.faded} />,
+          tabBarIcon: ({ focused }) => <TabIcon label="✎" focused={focused} accent={t.accent} faded={t.faded} />,
         }}
       />
       <Tabs.Screen
         name="journal"
         options={{
           title: 'MONTH',
-          tabBarIcon: ({ focused }) => <TabIcon label="📖" focused={focused} accent={t.accent} faded={t.faded} />,
+          tabBarIcon: ({ focused }) => <TabIcon label="◧" focused={focused} accent={t.accent} faded={t.faded} />,
         }}
       />
       <Tabs.Screen
         name="graphs"
         options={{
           title: 'GRAPHS',
-          tabBarIcon: ({ focused }) => <TabIcon label="📈" focused={focused} accent={t.accent} faded={t.faded} />,
+          tabBarIcon: ({ focused }) => <TabIcon label="◢" focused={focused} accent={t.accent} faded={t.faded} />,
         }}
       />
       <Tabs.Screen

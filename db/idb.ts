@@ -6,13 +6,19 @@
 // - Single-user, no auth. RLS policies permit anon write.
 
 import type {
+  Countdown,
   DayEntry,
+  DayIntention,
   Habit,
   HabitLog,
   MetricDefinition,
   MetricLog,
   MonthConfig,
+  MorningLog,
+  MorningRoutineItem,
   PersonalSetup,
+  StickyReminder,
+  UserSettings,
 } from './schema';
 import { supabase } from './supabase';
 
@@ -24,6 +30,12 @@ export type DatabaseSnapshot = {
   metricLogs: MetricLog[];
   monthConfig: MonthConfig[];
   personalSetups: PersonalSetup[];
+  stickyReminders: StickyReminder[];
+  countdowns: Countdown[];
+  userSettings: UserSettings[];
+  morningRoutineItems: MorningRoutineItem[];
+  morningLogs: MorningLog[];
+  dayIntentions: DayIntention[];
 };
 
 const emptySnapshot = (): DatabaseSnapshot => ({
@@ -34,6 +46,12 @@ const emptySnapshot = (): DatabaseSnapshot => ({
   metricLogs: [],
   monthConfig: [],
   personalSetups: [],
+  stickyReminders: [],
+  countdowns: [],
+  userSettings: [],
+  morningRoutineItems: [],
+  morningLogs: [],
+  dayIntentions: [],
 });
 
 let memoryCache: DatabaseSnapshot | null = null;
@@ -83,46 +101,97 @@ function monthConfigToRow(c: MonthConfig): any {
 }
 
 function personalSetupFromRow(r: any): PersonalSetup {
-  return { id: r.id, type: r.type, text: r.text, sortOrder: r.sort_order ?? 0, createdAt: r.created_at ?? new Date().toISOString(), targetDate: r.target_date, status: r.status ?? 'active' };
+  return { id: r.id, type: r.type, text: r.text, sortOrder: r.sort_order ?? 0, createdAt: r.created_at ?? new Date().toISOString(), targetDate: r.target_date, status: r.status ?? 'active', goalHorizon: r.goal_horizon ?? null };
 }
 function personalSetupToRow(p: PersonalSetup): any {
-  return { id: p.id, type: p.type, text: p.text, sort_order: p.sortOrder, target_date: p.targetDate, status: p.status };
+  return { id: p.id, type: p.type, text: p.text, sort_order: p.sortOrder, target_date: p.targetDate, status: p.status, goal_horizon: p.goalHorizon };
+}
+
+function stickyReminderFromRow(r: any): StickyReminder {
+  return { id: r.id, text: r.text, topic: r.topic, addedDate: r.added_date, dueDate: r.due_date, completed: !!r.completed, sortOrder: r.sort_order ?? 0, createdAt: r.created_at ?? new Date().toISOString() };
+}
+function stickyReminderToRow(s: StickyReminder): any {
+  return { id: s.id, text: s.text, topic: s.topic, added_date: s.addedDate, due_date: s.dueDate, completed: s.completed, sort_order: s.sortOrder };
+}
+
+function countdownFromRow(r: any): Countdown {
+  return { id: r.id, label: r.label, targetDate: r.target_date, icon: r.icon, sortOrder: r.sort_order ?? 0, createdAt: r.created_at ?? new Date().toISOString() };
+}
+function countdownToRow(c: Countdown): any {
+  return { id: c.id, label: c.label, target_date: c.targetDate, icon: c.icon, sort_order: c.sortOrder };
+}
+
+function userSettingsFromRow(r: any): UserSettings {
+  return { id: r.id, toneKey: r.tone_key, density: r.density, aesthetic: r.aesthetic, followSystem: !!r.follow_system, updatedAt: r.updated_at ?? new Date().toISOString() };
+}
+function userSettingsToRow(s: UserSettings): any {
+  return { id: s.id, tone_key: s.toneKey, density: s.density, aesthetic: s.aesthetic, follow_system: s.followSystem, updated_at: new Date().toISOString() };
+}
+
+function morningRoutineItemFromRow(r: any): MorningRoutineItem {
+  return { id: r.id, text: r.text, sortOrder: r.sort_order ?? 0, active: !!r.active, createdAt: r.created_at ?? new Date().toISOString() };
+}
+function morningRoutineItemToRow(m: MorningRoutineItem): any {
+  return { id: m.id, text: m.text, sort_order: m.sortOrder, active: m.active };
+}
+
+function morningLogFromRow(r: any): MorningLog {
+  return { id: r.id, date: r.date, itemId: r.item_id, completed: !!r.completed };
+}
+function morningLogToRow(l: MorningLog): any {
+  return { id: l.id, date: l.date, item_id: l.itemId, completed: l.completed };
+}
+
+function dayIntentionFromRow(r: any): DayIntention {
+  return { id: r.id, date: r.date, intention: r.intention, updatedAt: r.updated_at ?? new Date().toISOString() };
+}
+function dayIntentionToRow(d: DayIntention): any {
+  return { id: d.id, date: d.date, intention: d.intention, updated_at: new Date().toISOString() };
 }
 
 // ─── Initial fetch ─────────────────────────────────────────────────────────
 async function fetchSnapshot(): Promise<DatabaseSnapshot> {
-  const [habitsR, dayEntriesR, habitLogsR, metricDefsR, metricLogsR, monthConfigR, personalSetupsR] =
-    await Promise.all([
-      supabase.from('habits').select('*'),
-      supabase.from('day_entries').select('*'),
-      supabase.from('habit_logs').select('*'),
-      supabase.from('metric_definitions').select('*'),
-      supabase.from('metric_logs').select('*'),
-      supabase.from('month_config').select('*'),
-      supabase.from('personal_setups').select('*'),
-    ]);
+  const [
+    habitsR, dayEntriesR, habitLogsR, metricDefsR, metricLogsR, monthConfigR, personalSetupsR,
+    stickyR, countdownsR, userSettingsR, morningItemsR, morningLogsR, dayIntentionsR,
+  ] = await Promise.all([
+    supabase.from('habits').select('*'),
+    supabase.from('day_entries').select('*'),
+    supabase.from('habit_logs').select('*'),
+    supabase.from('metric_definitions').select('*'),
+    supabase.from('metric_logs').select('*'),
+    supabase.from('month_config').select('*'),
+    supabase.from('personal_setups').select('*'),
+    supabase.from('sticky_reminders').select('*'),
+    supabase.from('countdowns').select('*'),
+    supabase.from('user_settings').select('*'),
+    supabase.from('morning_routine_items').select('*'),
+    supabase.from('morning_logs').select('*'),
+    supabase.from('day_intentions').select('*'),
+  ]);
 
-  // If any errored, log but return empty (so app can still run)
-  for (const r of [habitsR, dayEntriesR, habitLogsR, metricDefsR, metricLogsR, monthConfigR, personalSetupsR]) {
+  for (const r of [habitsR, dayEntriesR, habitLogsR, metricDefsR, metricLogsR, monthConfigR, personalSetupsR, stickyR, countdownsR, userSettingsR, morningItemsR, morningLogsR, dayIntentionsR]) {
     if (r.error) console.error('Supabase fetch error:', r.error);
   }
 
   return {
-    habits:             (habitsR.data         ?? []).map(habitFromRow),
-    dayEntries:         (dayEntriesR.data     ?? []).map(dayEntryFromRow),
-    habitLogs:          (habitLogsR.data      ?? []).map(habitLogFromRow),
-    metricDefinitions:  (metricDefsR.data     ?? []).map(metricDefFromRow),
-    metricLogs:         (metricLogsR.data     ?? []).map(metricLogFromRow),
-    monthConfig:        (monthConfigR.data    ?? []).map(monthConfigFromRow),
-    personalSetups:     (personalSetupsR.data ?? []).map(personalSetupFromRow),
+    habits:              (habitsR.data         ?? []).map(habitFromRow),
+    dayEntries:          (dayEntriesR.data     ?? []).map(dayEntryFromRow),
+    habitLogs:           (habitLogsR.data      ?? []).map(habitLogFromRow),
+    metricDefinitions:   (metricDefsR.data     ?? []).map(metricDefFromRow),
+    metricLogs:          (metricLogsR.data     ?? []).map(metricLogFromRow),
+    monthConfig:         (monthConfigR.data    ?? []).map(monthConfigFromRow),
+    personalSetups:      (personalSetupsR.data ?? []).map(personalSetupFromRow),
+    stickyReminders:     (stickyR.data         ?? []).map(stickyReminderFromRow),
+    countdowns:          (countdownsR.data     ?? []).map(countdownFromRow),
+    userSettings:        (userSettingsR.data   ?? []).map(userSettingsFromRow),
+    morningRoutineItems: (morningItemsR.data   ?? []).map(morningRoutineItemFromRow),
+    morningLogs:         (morningLogsR.data    ?? []).map(morningLogFromRow),
+    dayIntentions:       (dayIntentionsR.data  ?? []).map(dayIntentionFromRow),
   };
 }
 
 // ─── Diff-sync ─────────────────────────────────────────────────────────────
-// For each table, compares prev vs next by id:
-//   - in next but not in prev → INSERT
-//   - in both but different    → UPDATE (upsert)
-//   - in prev but not in next  → DELETE
 async function syncTable<T extends { id: string }>(
   tableName: string,
   prev: T[],
@@ -157,13 +226,19 @@ async function syncTable<T extends { id: string }>(
 
 async function syncSnapshot(prev: DatabaseSnapshot, next: DatabaseSnapshot): Promise<void> {
   // Order matters: parent tables first (day_entries before habit_logs), child deletes via CASCADE
-  await syncTable('day_entries',        prev.dayEntries,        next.dayEntries,        dayEntryToRow);
-  await syncTable('habits',             prev.habits,            next.habits,            habitToRow);
-  await syncTable('metric_definitions', prev.metricDefinitions, next.metricDefinitions, metricDefToRow);
-  await syncTable('habit_logs',         prev.habitLogs,         next.habitLogs,         habitLogToRow);
-  await syncTable('metric_logs',        prev.metricLogs,        next.metricLogs,        metricLogToRow);
-  await syncTable('month_config',       prev.monthConfig,       next.monthConfig,       monthConfigToRow);
-  await syncTable('personal_setups',    prev.personalSetups,    next.personalSetups,    personalSetupToRow);
+  await syncTable('day_entries',          prev.dayEntries,          next.dayEntries,          dayEntryToRow);
+  await syncTable('habits',               prev.habits,              next.habits,              habitToRow);
+  await syncTable('metric_definitions',   prev.metricDefinitions,   next.metricDefinitions,   metricDefToRow);
+  await syncTable('habit_logs',           prev.habitLogs,           next.habitLogs,           habitLogToRow);
+  await syncTable('metric_logs',          prev.metricLogs,          next.metricLogs,          metricLogToRow);
+  await syncTable('month_config',         prev.monthConfig,         next.monthConfig,         monthConfigToRow);
+  await syncTable('personal_setups',      prev.personalSetups,      next.personalSetups,      personalSetupToRow);
+  await syncTable('sticky_reminders',     prev.stickyReminders,     next.stickyReminders,     stickyReminderToRow);
+  await syncTable('countdowns',           prev.countdowns,          next.countdowns,          countdownToRow);
+  await syncTable('user_settings',        prev.userSettings,        next.userSettings,        userSettingsToRow);
+  await syncTable('morning_routine_items',prev.morningRoutineItems, next.morningRoutineItems, morningRoutineItemToRow);
+  await syncTable('morning_logs',         prev.morningLogs,         next.morningLogs,         morningLogToRow);
+  await syncTable('day_intentions',       prev.dayIntentions,       next.dayIntentions,       dayIntentionToRow);
 }
 
 // ─── Public API ────────────────────────────────────────────────────────────
@@ -192,7 +267,6 @@ export async function updateSnapshot(
   const current = await readSnapshot();
   const next = updater(JSON.parse(JSON.stringify(current)) as DatabaseSnapshot);
   memoryCache = next;
-  // Fire-and-forget sync — local cache is updated synchronously for snappy UI
   syncSnapshot(current, next).catch((e) => console.error('Supabase sync failed:', e));
   return next;
 }

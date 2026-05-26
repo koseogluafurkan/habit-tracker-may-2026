@@ -58,6 +58,8 @@ export type MonthConfig = {
 // Sprint 1 — My Foundation
 export type PersonalSetupType = 'anti-goal' | 'limiting-belief' | 'yearly-goal';
 export type PersonalSetupStatus = 'active' | 'done';
+/** Goal horizons used in onboarding wizard for yearly-goal type */
+export type GoalHorizon = '6m' | '1y' | '3y' | '5y';
 
 export type PersonalSetup = {
   id: string;
@@ -67,4 +69,60 @@ export type PersonalSetup = {
   createdAt: string;
   targetDate: string | null;     // optional, for yearly-goal
   status: PersonalSetupStatus;
+  goalHorizon: GoalHorizon | null;
+};
+
+// ── Sticky Reminders (always visible until dismissed) ─────────────────────
+export type StickyReminder = {
+  id: string;
+  text: string;
+  topic: string | null;
+  addedDate: string;            // 'YYYY-MM-DD'
+  dueDate: string | null;       // info only; doesn't auto-hide
+  completed: boolean;
+  sortOrder: number;
+  createdAt: string;
+};
+
+// ── Custom Countdowns (dynamic tab bar items) ─────────────────────────────
+export type Countdown = {
+  id: string;
+  label: string;
+  targetDate: string;           // 'YYYY-MM-DD'
+  icon: string | null;
+  sortOrder: number;
+  createdAt: string;
+};
+
+// ── User Settings (theme prefs synced across devices) ─────────────────────
+export type UserSettings = {
+  id: string;                   // always 'singleton'
+  toneKey: string;
+  density: string;
+  aesthetic: string;
+  followSystem: boolean;
+  updatedAt: string;
+};
+
+// ── Morning Routine ────────────────────────────────────────────────────────
+export type MorningRoutineItem = {
+  id: string;
+  text: string;
+  sortOrder: number;
+  active: boolean;
+  createdAt: string;
+};
+
+export type MorningLog = {
+  id: string;
+  date: string;                 // 'YYYY-MM-DD'
+  itemId: string;
+  completed: boolean;
+};
+
+export type DayIntention = {
+  id: string;
+  date: string;                 // 'YYYY-MM-DD'
+  intention: string | null;
+  updatedAt: string;
 };

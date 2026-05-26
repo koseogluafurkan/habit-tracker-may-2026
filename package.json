@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "date-fns": "^4.3.0",
     "drizzle-orm": "^0.45.2",
     "expo": "~56.0.4",

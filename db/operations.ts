@@ -3,14 +3,21 @@ import { generateId, toDateKey } from '@/utils/dates';
 
 import { getSnapshot, replaceSnapshot, updateSnapshot } from './idb';
 import type {
+  Countdown,
   DayEntry,
+  DayIntention,
+  GoalHorizon,
   Habit,
   HabitLog,
   MetricDefinition,
   MetricLog,
   MonthConfig,
+  MorningLog,
+  MorningRoutineItem,
   PersonalSetup,
   PersonalSetupType,
+  StickyReminder,
+  UserSettings,
 } from './schema';
 
 export async function getHabitsForMonth(year: number, month: number): Promise<Habit[]> {
@@ -277,7 +284,7 @@ export async function getPersonalSetups(type?: PersonalSetupType): Promise<Perso
 export async function addPersonalSetup(
   type: PersonalSetupType,
   text: string,
-  opts: { targetDate?: string | null } = {},
+  opts: { targetDate?: string | null; goalHorizon?: GoalHorizon | null } = {},
 ): Promise<PersonalSetup> {
   const existing = await getPersonalSetups(type);
   const setup: PersonalSetup = {
@@ -288,6 +295,7 @@ export async function addPersonalSetup(
     createdAt: new Date().toISOString(),
     targetDate: opts.targetDate ?? null,
     status: 'active',
+    goalHorizon: opts.goalHorizon ?? null,
   };
   await updateSnapshot((s) => ({ ...s, personalSetups: [...s.personalSetups, setup] }));
   return setup;
@@ -295,7 +303,7 @@ export async function addPersonalSetup(
 
 export async function updatePersonalSetup(
   id: string,
-  data: Partial<Pick<PersonalSetup, 'text' | 'targetDate' | 'status' | 'sortOrder'>>,
+  data: Partial<Pick<PersonalSetup, 'text' | 'targetDate' | 'status' | 'sortOrder' | 'goalHorizon'>>,
 ): Promise<void> {
   await updateSnapshot((s) => ({
     ...s,
@@ -334,6 +342,12 @@ export async function importAllData(data: {
   metricLogs?: MetricLog[];
   monthConfig?: MonthConfig[];
   personalSetups?: PersonalSetup[];
+  stickyReminders?: StickyReminder[];
+  countdowns?: Countdown[];
+  userSettings?: UserSettings[];
+  morningRoutineItems?: MorningRoutineItem[];
+  morningLogs?: MorningLog[];
+  dayIntentions?: DayIntention[];
 }) {
   await replaceSnapshot({
     habits: data.habits ?? [],
@@ -342,6 +356,189 @@ export async function importAllData(data: {
     metricDefinitions: data.metricDefinitions ?? [],
     metricLogs: data.metricLogs ?? [],
     monthConfig: data.monthConfig ?? [],
-    personalSetups: data.personalSetups ?? [],
+    personalSetups: (data.personalSetups ?? []).map((p) => ({ ...p, goalHorizon: p.goalHorizon ?? null })),
+    stickyReminders: data.stickyReminders ?? [],
+    countdowns: data.countdowns ?? [],
+    userSettings: data.userSettings ?? [],
+    morningRoutineItems: data.morningRoutineItems ?? [],
+    morningLogs: data.morningLogs ?? [],
+    dayIntentions: data.dayIntentions ?? [],
   });
+}
+
+// ─── Sticky Reminders CRUD ─────────────────────────────────────────────────
+export async function getStickyReminders(): Promise<StickyReminder[]> {
+  const s = await getSnapshot();
+  return [...s.stickyReminders].sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    return a.sortOrder - b.sortOrder;
+  });
+}
+
+export async function addStickyReminder(text: string, topic: string | null = null, dueDate: string | null = null): Promise<StickyReminder> {
+  const existing = await getStickyReminders();
+  const r: StickyReminder = {
+    id: generateId(),
+    text, topic, dueDate,
+    addedDate: new Date().toISOString().slice(0, 10),
+    completed: false,
+    sortOrder: existing.length,
+    createdAt: new Date().toISOString(),
+  };
+  await updateSnapshot((s) => ({ ...s, stickyReminders: [...s.stickyReminders, r] }));
+  return r;
+}
+
+export async function updateStickyReminder(id: string, data: Partial<Pick<StickyReminder, 'text' | 'topic' | 'dueDate' | 'completed' | 'sortOrder'>>): Promise<void> {
+  await updateSnapshot((s) => ({
+    ...s,
+    stickyReminders: s.stickyReminders.map((r) => (r.id === id ? { ...r, ...data } : r)),
+  }));
+}
+
+export async function deleteStickyReminder(id: string): Promise<void> {
+  await updateSnapshot((s) => ({ ...s, stickyReminders: s.stickyReminders.filter((r) => r.id !== id) }));
+}
+
+// ─── Countdowns CRUD ───────────────────────────────────────────────────────
+export async function getCountdowns(): Promise<Countdown[]> {
+  const s = await getSnapshot();
+  return [...s.countdowns].sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export async function addCountdown(label: string, targetDate: string, icon: string | null = null): Promise<Countdown> {
+  const existing = await getCountdowns();
+  const c: Countdown = {
+    id: generateId(),
+    label, targetDate, icon,
+    sortOrder: existing.length,
+    createdAt: new Date().toISOString(),
+  };
+  await updateSnapshot((s) => ({ ...s, countdowns: [...s.countdowns, c] }));
+  return c;
+}
+
+export async function updateCountdown(id: string, data: Partial<Pick<Countdown, 'label' | 'targetDate' | 'icon' | 'sortOrder'>>): Promise<void> {
+  await updateSnapshot((s) => ({
+    ...s,
+    countdowns: s.countdowns.map((c) => (c.id === id ? { ...c, ...data } : c)),
+  }));
+}
+
+export async function deleteCountdown(id: string): Promise<void> {
+  await updateSnapshot((s) => ({ ...s, countdowns: s.countdowns.filter((c) => c.id !== id) }));
+}
+
+// ─── User Settings (single-row) ────────────────────────────────────────────
+export async function getUserSettings(): Promise<UserSettings | null> {
+  const s = await getSnapshot();
+  return s.userSettings.find((u) => u.id === 'singleton') ?? null;
+}
+
+export async function upsertUserSettings(data: Partial<Omit<UserSettings, 'id' | 'updatedAt'>>): Promise<UserSettings> {
+  const existing = await getUserSettings();
+  const next: UserSettings = {
+    id: 'singleton',
+    toneKey: data.toneKey ?? existing?.toneKey ?? 'cream',
+    density: data.density ?? existing?.density ?? 'relaxed',
+    aesthetic: data.aesthetic ?? existing?.aesthetic ?? 'grid',
+    followSystem: data.followSystem ?? existing?.followSystem ?? true,
+    updatedAt: new Date().toISOString(),
+  };
+  await updateSnapshot((s) => ({
+    ...s,
+    userSettings: existing
+      ? s.userSettings.map((u) => (u.id === 'singleton' ? next : u))
+      : [...s.userSettings, next],
+  }));
+  return next;
+}
+
+// ─── Morning Routine ───────────────────────────────────────────────────────
+export async function getMorningRoutineItems(activeOnly = false): Promise<MorningRoutineItem[]> {
+  const s = await getSnapshot();
+  const items = [...s.morningRoutineItems].sort((a, b) => a.sortOrder - b.sortOrder);
+  return activeOnly ? items.filter((i) => i.active) : items;
+}
+
+export async function addMorningRoutineItem(text: string): Promise<MorningRoutineItem> {
+  const existing = await getMorningRoutineItems();
+  const item: MorningRoutineItem = {
+    id: generateId(),
+    text, active: true,
+    sortOrder: existing.length,
+    createdAt: new Date().toISOString(),
+  };
+  await updateSnapshot((s) => ({ ...s, morningRoutineItems: [...s.morningRoutineItems, item] }));
+  return item;
+}
+
+export async function updateMorningRoutineItem(id: string, data: Partial<Pick<MorningRoutineItem, 'text' | 'active' | 'sortOrder'>>): Promise<void> {
+  await updateSnapshot((s) => ({
+    ...s,
+    morningRoutineItems: s.morningRoutineItems.map((i) => (i.id === id ? { ...i, ...data } : i)),
+  }));
+}
+
+export async function deleteMorningRoutineItem(id: string): Promise<void> {
+  await updateSnapshot((s) => ({
+    ...s,
+    morningRoutineItems: s.morningRoutineItems.filter((i) => i.id !== id),
+    morningLogs: s.morningLogs.filter((l) => l.itemId !== id),
+  }));
+}
+
+export async function getMorningLogs(date: string): Promise<MorningLog[]> {
+  const s = await getSnapshot();
+  return s.morningLogs.filter((l) => l.date === date);
+}
+
+export async function toggleMorningLog(date: string, itemId: string): Promise<void> {
+  await updateSnapshot((s) => {
+    const existing = s.morningLogs.find((l) => l.date === date && l.itemId === itemId);
+    if (existing) {
+      return {
+        ...s,
+        morningLogs: s.morningLogs.map((l) =>
+          l.id === existing.id ? { ...l, completed: !l.completed } : l
+        ),
+      };
+    }
+    return {
+      ...s,
+      morningLogs: [...s.morningLogs, { id: generateId(), date, itemId, completed: true }],
+    };
+  });
+}
+
+// ─── Day Intentions ────────────────────────────────────────────────────────
+export async function getDayIntention(date: string): Promise<DayIntention | null> {
+  const s = await getSnapshot();
+  return s.dayIntentions.find((d) => d.date === date) ?? null;
+}
+
+export async function setDayIntention(date: string, intention: string | null): Promise<void> {
+  await updateSnapshot((s) => {
+    const existing = s.dayIntentions.find((d) => d.date === date);
+    const next: DayIntention = {
+      id: existing?.id ?? generateId(),
+      date,
+      intention: intention?.trim() || null,
+      updatedAt: new Date().toISOString(),
+    };
+    return {
+      ...s,
+      dayIntentions: existing
+        ? s.dayIntentions.map((d) => (d.id === existing.id ? next : d))
+        : [...s.dayIntentions, next],
+    };
+  });
+}
+
+// ─── Metric Definition (update + reorder) ──────────────────────────────────
+export async function updateMetricDefinition(id: string, data: Partial<Pick<MetricDefinition, 'name' | 'scale' | 'minVal' | 'maxVal' | 'sortOrder'>>): Promise<void> {
+  await updateSnapshot((s) => ({
+    ...s,
+    metricDefinitions: s.metricDefinitions.map((m) => (m.id === id ? { ...m, ...data } : m)),
+  }));
 }

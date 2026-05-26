@@ -44,6 +44,7 @@ import { GridOverlay } from './atoms/GridOverlay';
 import { CalendarModal } from './CalendarModal';
 import { MorningRevisitModal } from './MorningRevisitModal';
 import { NumericInputModal } from '@/components/NumericInputModal';
+import { StickyRemindersBanner } from '@/components/StickyRemindersBanner';
 
 // ─── Day-of-year helper ───────────────────────────────────────────────────
 function getDayLabel(date: Date): string {
@@ -126,21 +127,27 @@ function WeekStrip({
           </Pressable>
         );
       })}
-      {/* Calendar button */}
+      {/* Calendar button — larger and more visible */}
       <Pressable
         onPress={onCalendar}
         style={[
           styles.weekCell,
           {
             borderWidth: 1.5,
-            borderColor: t.rule,
-            backgroundColor: 'transparent',
-            paddingVertical: 8,
-            maxWidth: 40,
+            borderColor: t.accent,
+            backgroundColor: t.dark ? 'rgba(216,182,106,0.10)' : 'rgba(139,111,71,0.08)',
+            paddingVertical: 14,
+            maxWidth: 56,
+            minWidth: 48,
+            alignItems: 'center',
+            justifyContent: 'center',
           },
         ]}>
-        <Text style={{ fontFamily: FONT_MONO, fontSize: 9, color: t.faded, textAlign: 'center' }}>
+        <Text style={{ fontSize: 22, lineHeight: 24, color: t.accent, textAlign: 'center' }}>
           📅
+        </Text>
+        <Text style={{ fontFamily: FONT_MONO, fontSize: 8, color: t.accent, marginTop: 2, letterSpacing: 1 }}>
+          PICK
         </Text>
       </Pressable>
     </View>
@@ -458,7 +465,9 @@ export function DayJournalView() {
 
   // Form state
   const [moment,      setMoment]      = useState('');
-  const [reminder,    setReminder]    = useState('');
+  const [reminder,    setReminder]    = useState('');           // for FUTURE-date view (writes to that date)
+  const [tomorrowReminder, setTomorrowReminder] = useState(''); // for TODAY view → writes to tomorrow
+  const [carryoverFromYesterday, setCarryover] = useState('');  // read-only banner on TODAY
   const [sleepHours,  setSleepHours]  = useState('');
   const [sleepScore,  setSleepScore]  = useState('');
   const [metricVals,  setMetricVals]  = useState<Record<string, string>>({});
@@ -477,6 +486,27 @@ export function DayJournalView() {
     setSleepHours(entry?.sleepHours != null ? String(entry.sleepHours) : '');
     setSleepScore(entry?.sleepScore != null ? String(entry.sleepScore) : '');
   }, [entry, selectedDate]);
+
+  // Fetch tomorrow's reminder (for the "Tomorrow's reminder" field on TODAY)
+  // and yesterday's reminder (carryover banner showing what was planned for today)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const ops = await import('@/db/operations');
+      const tomorrowDate = shiftDay(selectedDate, 1);
+      const yesterdayDate = shiftDay(selectedDate, -1);
+      const [tEntry, yEntry] = await Promise.all([
+        ops.getDayEntryByDate(tomorrowDate),
+        ops.getDayEntryByDate(yesterdayDate),
+      ]);
+      if (cancelled) return;
+      setTomorrowReminder(tEntry?.dayReminder ?? '');
+      // Show yesterday's reminder as carryover IFF today's own reminder is empty
+      // (yesterday's note "for tomorrow" effectively saved to today, so we display it)
+      setCarryover(yEntry?.dayReminder ?? '');
+    })();
+    return () => { cancelled = true; };
+  }, [selectedDate, entry]);
 
   useEffect(() => {
     const vals: Record<string, string> = {};
@@ -507,6 +537,15 @@ export function DayJournalView() {
         );
       }
     }
+  };
+
+  // "Tomorrow's reminder" on TODAY writes to TOMORROW's entry
+  const handleTomorrowReminderBlur = async () => {
+    const ops = await import('@/db/operations');
+    const tomorrowDate = shiftDay(selectedDate, 1);
+    const tEntry = await ops.getOrCreateDayEntry(tomorrowDate);
+    await ops.updateDayEntry(tEntry.id, { dayReminder: tomorrowReminder.trim() || null });
+    refresh();
   };
 
   const handleSaveSleep = () => {
@@ -545,6 +584,30 @@ export function DayJournalView() {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}
         keyboardShouldPersistTaps="handled">
+
+        {/* Sticky reminders top banner — items always in view */}
+        {today ? <StickyRemindersBanner /> : null}
+
+        {/* Carryover from yesterday's planning */}
+        {today && carryoverFromYesterday.trim() ? (
+          <View style={{
+            marginHorizontal: 0,
+            marginBottom: 12,
+            padding: 12,
+            borderWidth: 1,
+            borderLeftWidth: 3,
+            borderColor: t.rule,
+            borderLeftColor: t.accent,
+            backgroundColor: t.dark ? 'rgba(216,182,106,0.10)' : 'rgba(139,111,71,0.08)',
+          }}>
+            <Text style={{ fontFamily: FONT_MONO, fontSize: t.fs.meta, letterSpacing: 2, color: t.accent, marginBottom: 4 }}>
+              ← FROM YESTERDAY'S NOTE FOR TODAY
+            </Text>
+            <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 14, color: t.ink.black, lineHeight: 20 }}>
+              {carryoverFromYesterday}
+            </Text>
+          </View>
+        ) : null}
 
         {/* ── Header ── */}
         <View style={[styles.headerRow, { marginBottom: t.sp.sm }]}>
@@ -780,7 +843,7 @@ export function DayJournalView() {
                 </View>
               ) : null}
 
-              {/* V · Looking Forward */}
+              {/* V · Looking Forward — writes to TOMORROW's dayReminder so it carries over */}
               {!future ? (
                 <View style={{ marginTop: t.sp.xl }}>
                   <SectionHeader eyebrow="V · Looking Forward" title="Tomorrow's reminder" />
@@ -797,34 +860,47 @@ export function DayJournalView() {
                       },
                     ]}
                     multiline
-                    placeholder="A small note to your future self…"
+                    placeholder="A small note to your future self for tomorrow…"
                     placeholderTextColor={t.faded}
-                    value={reminder}
-                    onChangeText={setReminder}
-                    onBlur={handleReminderBlur}
+                    value={tomorrowReminder}
+                    onChangeText={setTomorrowReminder}
+                    onBlur={handleTomorrowReminderBlur}
                   />
+                  <Text style={{ fontFamily: FONT_MONO, fontSize: 9, color: t.faded, marginTop: 4, letterSpacing: 1 }}>
+                    SAVES TO TOMORROW · WILL APPEAR ON NEXT DAY'S TOP BANNER
+                  </Text>
                 </View>
               ) : null}
             </View>
           ) : null}
         </View>
 
-        {/* ── Hyper-focus banner ── */}
+        {/* ── Hyper-focus banner ── high contrast in dark mode */}
         {monthConfig?.hyperFocus ? (
           <View
             style={{
               marginTop: t.sp.xl,
-              padding: 12,
-              borderWidth: 1,
-              borderLeftWidth: 3,
-              borderColor: t.rule,
+              padding: 14,
+              borderWidth: 1.5,
+              borderLeftWidth: 4,
+              borderColor: t.ink.blue,
               borderLeftColor: t.ink.blue,
-              backgroundColor: t.dark ? 'rgba(30,58,138,0.06)' : 'rgba(30,58,138,0.04)',
+              // Stronger fill so the eyebrow stays readable on any tone
+              backgroundColor: t.dark ? 'rgba(30,58,138,0.22)' : 'rgba(30,58,138,0.10)',
             }}>
-            <Text style={{ fontFamily: FONT_MONO, fontSize: t.fs.meta, letterSpacing: 2.2, textTransform: 'uppercase', color: t.ink.blue, marginBottom: 4 }}>
+            <Text style={{
+              fontFamily: FONT_MONO, fontSize: t.fs.meta + 1, letterSpacing: 2.2,
+              textTransform: 'uppercase',
+              // In dark mode the blue ink itself is hard to read on dark — use paper for max contrast
+              color: t.dark ? t.paperHi : t.ink.blue,
+              marginBottom: 4, fontWeight: '700',
+            }}>
               HYPER-FOCUS · {format(selectedDate, 'MMM').toUpperCase()}
             </Text>
-            <Text style={{ fontFamily: FONT_HEADING, fontSize: t.fs.h3, fontWeight: '700', color: t.ink.black, lineHeight: t.fs.h3 * 1.15 }}>
+            <Text style={{
+              fontFamily: FONT_HEADING, fontSize: t.fs.h3, fontWeight: '700',
+              color: t.ink.black, lineHeight: t.fs.h3 * 1.15,
+            }}>
               {monthConfig.hyperFocus}
             </Text>
           </View>
