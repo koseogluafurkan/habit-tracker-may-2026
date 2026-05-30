@@ -1,56 +1,68 @@
 /**
- * AuthContext — Supabase Magic Link authentication.
+ * AuthContext — authentication with two paths:
  *
- * Flow:
- *  1. User enters email → sendMagicLink() fires signInWithOtp
- *  2. Supabase sends an email with a clickable link
- *  3. User clicks link → browser opens the app URL with #access_token in hash
- *  4. Supabase JS SDK picks up the hash and fires onAuthStateChange → logged in
- *  5. Session saved in localStorage → silent restore on next open (weeks/months)
+ * FAST PATH (no email, instant):
+ *   - User types "demo2026" → signInWithPassword using owner credentials
+ *   - User types the owner email → same password flow
+ *   → No rate limits, no email needed, works every time.
  *
- * The emailRedirectTo must match the Site URL set in Supabase dashboard.
- * Also requires the URL to be listed in Auth → URL Configuration → Redirect URLs.
+ * SLOW PATH (magic link, for unfamiliar devices):
+ *   - Any other email → signInWithOtp → email with link
+ *   → Falls back gracefully if rate-limited.
+ *
+ * Sessions persist in localStorage → silent restore on next open.
  */
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 
 import { supabase } from '@/db/supabase';
 
-// Production URL — must match Supabase Auth → URL Configuration → Site URL
+// ─── Bypass config ──────────────────────────────────────────────────────────
+// When these inputs are detected, use password auth (no email sent).
+const OWNER_EMAIL   = 'koseoglu.afurkan@icloud.com';
+const BYPASS_CODES  = ['demo2026'];                  // shortcut codes → instant login
+const BYPASS_PASS   = 'demo2026';                    // password set in Supabase
+
+/** Returns true if this input should bypass magic-link and use password auth. */
+function isBypass(input: string): boolean {
+  const clean = input.trim().toLowerCase();
+  return clean === OWNER_EMAIL.toLowerCase() || BYPASS_CODES.includes(clean);
+}
+
+// Production redirect URL (used for magic-link path only)
 const APP_URL =
   typeof window !== 'undefined' && window.location.hostname !== 'localhost'
     ? `${window.location.protocol}//${window.location.host}`
     : 'https://project-0clek.vercel.app';
 
+// ─── Types ──────────────────────────────────────────────────────────────────
 type AuthState =
   | { status: 'loading' }
   | { status: 'unauthenticated' }
-  | { status: 'awaiting_link' }                               // email sent, waiting for click
+  | { status: 'awaiting_link' }
   | { status: 'authenticated'; user: User; session: Session };
 
 type AuthContextValue = {
   state: AuthState;
-  sendMagicLink: (email: string) => Promise<string | null>;
+  /** Try to sign in. Returns an error string or null on success. */
+  signIn: (input: string) => Promise<string | null>;
   resetToEmail: () => void;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// ─── Provider ───────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
 
   useEffect(() => {
-    // Try to restore existing session from localStorage
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setState({ status: 'authenticated', user: session.user, session });
-      } else {
-        setState({ status: 'unauthenticated' });
-      }
+      setState(session?.user
+        ? { status: 'authenticated', user: session.user, session }
+        : { status: 'unauthenticated' });
     });
 
-    // Listen for auth events (including magic link hash resolution)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setState({ status: 'authenticated', user: session.user, session });
@@ -62,13 +74,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const sendMagicLink = useCallback(async (email: string): Promise<string | null> => {
+  const signIn = useCallback(async (input: string): Promise<string | null> => {
+    // ── Fast path: password auth (instant, no email, no rate limit) ──
+    if (isBypass(input)) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email:    OWNER_EMAIL,
+        password: BYPASS_PASS,
+      });
+      return error?.message ?? null;
+      // On success, onAuthStateChange fires and state flips to 'authenticated'.
+    }
+
+    // ── Slow path: magic link sent to the provided email ──
     const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
+      email: input.trim().toLowerCase(),
       options: {
         shouldCreateUser: true,
-        // This is where Supabase redirects after the user clicks the link.
-        // Must also be listed in Supabase Auth → URL Configuration → Redirect URLs.
         emailRedirectTo: APP_URL,
       },
     });
@@ -85,12 +106,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ state, sendMagicLink, resetToEmail, signOut }}>
+    <AuthContext.Provider value={{ state, signIn, resetToEmail, signOut }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
+// ─── Hooks ───────────────────────────────────────────────────────────────────
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
