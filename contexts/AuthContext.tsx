@@ -18,15 +18,24 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/db/supabase';
 
 // ─── Bypass config ──────────────────────────────────────────────────────────
-// When these inputs are detected, use password auth (no email sent).
-const OWNER_EMAIL   = 'koseoglu.afurkan@icloud.com';
-const BYPASS_CODES  = ['demo2026'];                  // shortcut codes → instant login
-const BYPASS_PASS   = 'demo2026';                    // password set in Supabase
+// Any input in this list → password auth (instant, no email, no rate limit).
+const OWNER_EMAIL = 'koseoglu.afurkan@icloud.com';
+const BYPASS_PASS = 'demo2026';
 
-/** Returns true if this input should bypass magic-link and use password auth. */
+// All strings that trigger the password bypass (compared case-insensitively,
+// all whitespace stripped — handles iOS autocapitalize / autocomplete weirdness).
+const BYPASS_INPUTS: string[] = [
+  'demo2026',
+  OWNER_EMAIL,
+];
+
+function normalise(s: string): string {
+  return s.replace(/\s/g, '').toLowerCase();
+}
+
 function isBypass(input: string): boolean {
-  const clean = input.trim().toLowerCase();
-  return clean === OWNER_EMAIL.toLowerCase() || BYPASS_CODES.includes(clean);
+  const n = normalise(input);
+  return BYPASS_INPUTS.some((b) => normalise(b) === n);
 }
 
 // Production redirect URL (used for magic-link path only)
@@ -77,12 +86,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(async (input: string): Promise<string | null> => {
     // ── Fast path: password auth (instant, no email, no rate limit) ──
     if (isBypass(input)) {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email:    OWNER_EMAIL,
         password: BYPASS_PASS,
       });
-      return error?.message ?? null;
-      // On success, onAuthStateChange fires and state flips to 'authenticated'.
+      if (error) {
+        console.error('[Auth] signInWithPassword failed:', error.message, error.status);
+        return error.message;
+      }
+      // onAuthStateChange will fire SIGNED_IN and flip state to 'authenticated'
+      console.log('[Auth] signInWithPassword success, user:', data.user?.email);
+      return null;
     }
 
     // ── Slow path: magic link sent to the provided email ──

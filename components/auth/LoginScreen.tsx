@@ -48,11 +48,15 @@ export function LoginScreen() {
     if (!trimmed) return;
     setLoading(true);
     setError(null);
-    const err = await signIn(trimmed);
-    setLoading(false);
-    if (err) setError(err);
-    // On success: state transitions to 'authenticated' (password path)
-    //             or 'awaiting_link' (magic-link path) automatically.
+    try {
+      const err = await signIn(trimmed);
+      // On success: state → 'authenticated' (password) or 'awaiting_link' (magic link)
+      if (err) setError(`Giriş başarısız: ${err}`);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
