@@ -1,23 +1,23 @@
 /**
  * AuthContext — authentication
  *
- * Strategy: "allow-list gated, single shared account"
+ * Strategy: "allow-list gated, per-user accounts"
  *
- * 1. User types an email or keyword.
- * 2. We ask Supabase (RPC `check_access`) whether that value is whitelisted.
- *    - If yes  → signInWithPassword into the shared owner account → instant, no email.
- *    - If no   → record an access request (RPC `request_access`) and show a waitlist
- *                message. No magic link is sent.
+ * 1. User types an email, alias, or keyword.
+ * 2. We call `check_access` RPC which returns the user's email (or null if not listed).
+ *    - If email returned → signInWithPassword as THAT user → instant, no magic link.
+ *    - If null           → record an access request (RPC `request_access`) and show waitlist.
  *
- * The whitelist lives in the `access_list` table; the owner adds emails/keywords there.
+ * Each access_list row maps to a real Supabase auth user.
+ * RLS policies on all data tables enforce per-user isolation via auth.uid().
  */
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 
 import { supabase } from '@/db/supabase';
+import { resetIdbCache } from '@/db/idb';
 
-const OWNER_EMAIL = 'koseoglu.afurkan@icloud.com';
-const BYPASS_PASS = 'demo2026';   // owner account password (set via SQL)
+const BYPASS_PASS = 'demo2026';   // shared password for all access-list users
 
 type AuthState =
   | { status: 'loading' }
@@ -59,8 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const value = input.trim().toLowerCase();
     if (!value) return 'Boş bırakmayın.';
 
-    // ── Step 1: is this email/keyword whitelisted? ──
-    const { data: allowed, error: rpcErr } = await supabase.rpc('check_access', {
+    // ── Step 1: look up user email via alias/value/keyword ──
+    const { data: userEmail, error: rpcErr } = await supabase.rpc('check_access', {
       input: value,
     });
 
@@ -69,10 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return `Giriş kontrol edilemedi: ${rpcErr.message}`;
     }
 
-    if (allowed === true) {
-      // ── Whitelisted → sign in to the shared owner account (instant, no email) ──
+    if (userEmail) {
+      // ── Whitelisted → sign in as THIS user's account (instant, no email) ──
       const { error: pwErr } = await supabase.auth.signInWithPassword({
-        email: OWNER_EMAIL,
+        email: userEmail as string,
         password: BYPASS_PASS,
       });
       if (pwErr) {
@@ -93,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const resetToEmail = useCallback(() => setState({ status: 'unauthenticated' }), []);
 
   const signOut = useCallback(async () => {
+    resetIdbCache(); // clear in-memory snapshot so next user starts fresh
     await supabase.auth.signOut();
   }, []);
 

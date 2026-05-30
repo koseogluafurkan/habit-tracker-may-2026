@@ -3,7 +3,7 @@
 // - Loads full snapshot from Supabase once on startup (in-memory cache).
 // - updateSnapshot(updater): computes new snapshot, diffs against prev,
 //   pushes per-row inserts/updates/deletes to Supabase.
-// - Single-user, no auth. RLS policies permit anon write.
+// - Multi-user: RLS enforces per-user isolation; user_id embedded in every upsert.
 
 import type {
   Countdown,
@@ -57,100 +57,114 @@ const emptySnapshot = (): DatabaseSnapshot => ({
 let memoryCache: DatabaseSnapshot | null = null;
 let initPromise: Promise<DatabaseSnapshot> | null = null;
 
+// Current authenticated user — set during fetchSnapshot, included in every upsert row
+let currentUserId: string | null = null;
+
+/** Called by AuthContext on sign-out to clear the in-memory cache for the next user. */
+export function resetIdbCache(): void {
+  memoryCache = null;
+  initPromise = null;
+  currentUserId = null;
+}
+
 // ─── Row mappers (camelCase ↔ snake_case) ──────────────────────────────────
 function habitFromRow(r: any): Habit {
   return { id: r.id, year: r.year, month: r.month, name: r.name, color: r.color, type: r.type, sortOrder: r.sort_order ?? 0, deletedAt: r.deleted_at ?? null };
 }
 function habitToRow(h: Habit): any {
-  return { id: h.id, year: h.year, month: h.month, name: h.name, color: h.color, type: h.type, sort_order: h.sortOrder, deleted_at: h.deletedAt };
+  return { id: h.id, year: h.year, month: h.month, name: h.name, color: h.color, type: h.type, sort_order: h.sortOrder, deleted_at: h.deletedAt, user_id: currentUserId };
 }
 
 function dayEntryFromRow(r: any): DayEntry {
   return { id: r.id, date: r.date, memorableMoment: r.memorable_moment, dayReminder: r.day_reminder, sleepHours: r.sleep_hours, sleepScore: r.sleep_score, freeNotes: r.free_notes ?? null };
 }
 function dayEntryToRow(d: DayEntry): any {
-  return { id: d.id, date: d.date, memorable_moment: d.memorableMoment, day_reminder: d.dayReminder, sleep_hours: d.sleepHours, sleep_score: d.sleepScore, free_notes: d.freeNotes ?? null };
+  return { id: d.id, date: d.date, memorable_moment: d.memorableMoment, day_reminder: d.dayReminder, sleep_hours: d.sleepHours, sleep_score: d.sleepScore, free_notes: d.freeNotes ?? null, user_id: currentUserId };
 }
 
 function habitLogFromRow(r: any): HabitLog {
   return { id: r.id, dayEntryId: r.day_entry_id, habitId: r.habit_id, value: r.value, note: r.note ?? null };
 }
 function habitLogToRow(l: HabitLog): any {
-  return { id: l.id, day_entry_id: l.dayEntryId, habit_id: l.habitId, value: l.value, note: l.note };
+  return { id: l.id, day_entry_id: l.dayEntryId, habit_id: l.habitId, value: l.value, note: l.note, user_id: currentUserId };
 }
 
 function metricDefFromRow(r: any): MetricDefinition {
   return { id: r.id, name: r.name, scale: r.scale, minVal: Number(r.min_val), maxVal: Number(r.max_val), sortOrder: r.sort_order ?? 0, description: r.description ?? null };
 }
 function metricDefToRow(m: MetricDefinition): any {
-  return { id: m.id, name: m.name, scale: m.scale, min_val: m.minVal, max_val: m.maxVal, sort_order: m.sortOrder, description: m.description ?? null };
+  return { id: m.id, name: m.name, scale: m.scale, min_val: m.minVal, max_val: m.maxVal, sort_order: m.sortOrder, description: m.description ?? null, user_id: currentUserId };
 }
 
 function metricLogFromRow(r: any): MetricLog {
   return { id: r.id, dayEntryId: r.day_entry_id, metricId: r.metric_id, value: Number(r.value) };
 }
 function metricLogToRow(l: MetricLog): any {
-  return { id: l.id, day_entry_id: l.dayEntryId, metric_id: l.metricId, value: l.value };
+  return { id: l.id, day_entry_id: l.dayEntryId, metric_id: l.metricId, value: l.value, user_id: currentUserId };
 }
 
 function monthConfigFromRow(r: any): MonthConfig {
   return { id: r.id, year: r.year, month: r.month, nextMonthIdeas: r.next_month_ideas, reminderMessage: r.reminder_message, hyperFocus: r.hyper_focus };
 }
 function monthConfigToRow(c: MonthConfig): any {
-  return { id: c.id, year: c.year, month: c.month, next_month_ideas: c.nextMonthIdeas, reminder_message: c.reminderMessage, hyper_focus: c.hyperFocus };
+  return { id: c.id, year: c.year, month: c.month, next_month_ideas: c.nextMonthIdeas, reminder_message: c.reminderMessage, hyper_focus: c.hyperFocus, user_id: currentUserId };
 }
 
 function personalSetupFromRow(r: any): PersonalSetup {
   return { id: r.id, type: r.type, text: r.text, sortOrder: r.sort_order ?? 0, createdAt: r.created_at ?? new Date().toISOString(), targetDate: r.target_date, status: r.status ?? 'active', goalHorizon: r.goal_horizon ?? null, deletedAt: r.deleted_at ?? null };
 }
 function personalSetupToRow(p: PersonalSetup): any {
-  return { id: p.id, type: p.type, text: p.text, sort_order: p.sortOrder, target_date: p.targetDate, status: p.status, goal_horizon: p.goalHorizon, deleted_at: p.deletedAt ?? null };
+  return { id: p.id, type: p.type, text: p.text, sort_order: p.sortOrder, target_date: p.targetDate, status: p.status, goal_horizon: p.goalHorizon, deleted_at: p.deletedAt ?? null, user_id: currentUserId };
 }
 
 function stickyReminderFromRow(r: any): StickyReminder {
   return { id: r.id, text: r.text, topic: r.topic, addedDate: r.added_date, dueDate: r.due_date, completed: !!r.completed, sortOrder: r.sort_order ?? 0, createdAt: r.created_at ?? new Date().toISOString() };
 }
 function stickyReminderToRow(s: StickyReminder): any {
-  return { id: s.id, text: s.text, topic: s.topic, added_date: s.addedDate, due_date: s.dueDate, completed: s.completed, sort_order: s.sortOrder };
+  return { id: s.id, text: s.text, topic: s.topic, added_date: s.addedDate, due_date: s.dueDate, completed: s.completed, sort_order: s.sortOrder, user_id: currentUserId };
 }
 
 function countdownFromRow(r: any): Countdown {
   return { id: r.id, label: r.label, targetDate: r.target_date, icon: r.icon, sortOrder: r.sort_order ?? 0, createdAt: r.created_at ?? new Date().toISOString() };
 }
 function countdownToRow(c: Countdown): any {
-  return { id: c.id, label: c.label, target_date: c.targetDate, icon: c.icon, sort_order: c.sortOrder };
+  return { id: c.id, label: c.label, target_date: c.targetDate, icon: c.icon, sort_order: c.sortOrder, user_id: currentUserId };
 }
 
 function userSettingsFromRow(r: any): UserSettings {
   return { id: r.id, toneKey: r.tone_key, density: r.density, aesthetic: r.aesthetic, followSystem: !!r.follow_system, updatedAt: r.updated_at ?? new Date().toISOString() };
 }
 function userSettingsToRow(s: UserSettings): any {
-  return { id: s.id, tone_key: s.toneKey, density: s.density, aesthetic: s.aesthetic, follow_system: s.followSystem, updated_at: new Date().toISOString() };
+  return { id: s.id, tone_key: s.toneKey, density: s.density, aesthetic: s.aesthetic, follow_system: s.followSystem, updated_at: new Date().toISOString(), user_id: currentUserId };
 }
 
 function morningRoutineItemFromRow(r: any): MorningRoutineItem {
   return { id: r.id, text: r.text, sortOrder: r.sort_order ?? 0, active: !!r.active, createdAt: r.created_at ?? new Date().toISOString() };
 }
 function morningRoutineItemToRow(m: MorningRoutineItem): any {
-  return { id: m.id, text: m.text, sort_order: m.sortOrder, active: m.active };
+  return { id: m.id, text: m.text, sort_order: m.sortOrder, active: m.active, user_id: currentUserId };
 }
 
 function morningLogFromRow(r: any): MorningLog {
   return { id: r.id, date: r.date, itemId: r.item_id, completed: !!r.completed };
 }
 function morningLogToRow(l: MorningLog): any {
-  return { id: l.id, date: l.date, item_id: l.itemId, completed: l.completed };
+  return { id: l.id, date: l.date, item_id: l.itemId, completed: l.completed, user_id: currentUserId };
 }
 
 function dayIntentionFromRow(r: any): DayIntention {
   return { id: r.id, date: r.date, intention: r.intention, updatedAt: r.updated_at ?? new Date().toISOString() };
 }
 function dayIntentionToRow(d: DayIntention): any {
-  return { id: d.id, date: d.date, intention: d.intention, updated_at: new Date().toISOString() };
+  return { id: d.id, date: d.date, intention: d.intention, updated_at: new Date().toISOString(), user_id: currentUserId };
 }
 
 // ─── Initial fetch ─────────────────────────────────────────────────────────
 async function fetchSnapshot(): Promise<DatabaseSnapshot> {
+  // Capture the current user so every subsequent upsert includes their user_id
+  const { data: { session } } = await supabase.auth.getSession();
+  currentUserId = session?.user?.id ?? null;
+
   const [
     habitsR, dayEntriesR, habitLogsR, metricDefsR, metricLogsR, monthConfigR, personalSetupsR,
     stickyR, countdownsR, userSettingsR, morningItemsR, morningLogsR, dayIntentionsR,

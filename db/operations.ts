@@ -515,16 +515,17 @@ export async function deleteCountdown(id: string): Promise<void> {
   await updateSnapshot((s) => ({ ...s, countdowns: s.countdowns.filter((c) => c.id !== id) }));
 }
 
-// ─── User Settings (single-row) ────────────────────────────────────────────
+// ─── User Settings (one row per user — identified by position in RLS-filtered array) ──
 export async function getUserSettings(): Promise<UserSettings | null> {
   const s = await getSnapshot();
-  return s.userSettings.find((u) => u.id === 'singleton') ?? null;
+  // RLS guarantees only the current user's row is in the snapshot
+  return s.userSettings[0] ?? null;
 }
 
 export async function upsertUserSettings(data: Partial<Omit<UserSettings, 'id' | 'updatedAt'>>): Promise<UserSettings> {
   const existing = await getUserSettings();
   const next: UserSettings = {
-    id: 'singleton',
+    id: existing?.id ?? generateId(), // use existing id or create a new UUID (no more 'singleton')
     toneKey: data.toneKey ?? existing?.toneKey ?? 'cream',
     density: data.density ?? existing?.density ?? 'relaxed',
     aesthetic: data.aesthetic ?? existing?.aesthetic ?? 'grid',
@@ -534,7 +535,7 @@ export async function upsertUserSettings(data: Partial<Omit<UserSettings, 'id' |
   await updateSnapshot((s) => ({
     ...s,
     userSettings: existing
-      ? s.userSettings.map((u) => (u.id === 'singleton' ? next : u))
+      ? s.userSettings.map((u) => (u.id === existing.id ? next : u))
       : [...s.userSettings, next],
   }));
   return next;
@@ -622,7 +623,7 @@ export async function setDayIntention(date: string, intention: string | null): P
 }
 
 // ─── Metric Definition (update + reorder) ──────────────────────────────────
-export async function updateMetricDefinition(id: string, data: Partial<Pick<MetricDefinition, 'name' | 'scale' | 'minVal' | 'maxVal' | 'sortOrder'>>): Promise<void> {
+export async function updateMetricDefinition(id: string, data: Partial<Pick<MetricDefinition, 'name' | 'scale' | 'minVal' | 'maxVal' | 'sortOrder' | 'description'>>): Promise<void> {
   await updateSnapshot((s) => ({
     ...s,
     metricDefinitions: s.metricDefinitions.map((m) => (m.id === id ? { ...m, ...data } : m)),

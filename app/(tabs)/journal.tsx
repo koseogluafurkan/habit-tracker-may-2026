@@ -296,13 +296,14 @@ export default function JournalScreen() {
     return map;
   };
 
-  // Dynamic habit cell size — fits available width
-  // Estimated right-page width: half of contentMaxWidth on desktop, full width on mobile
+  // Dynamic habit cell size — fits available width, minimum 36 so headers stay readable
   const estimatedContentWidth = Math.min(windowWidth, isDesktop ? 1400 : windowWidth) - 40;
   const rightPageWidth = isDesktop ? (estimatedContentWidth / 2) - 24 : estimatedContentWidth;
   const cellSize = habits.length > 0
-    ? Math.max(22, Math.min(48, Math.floor((rightPageWidth - 16) / habits.length) - 4))
-    : 28;
+    ? Math.max(36, Math.min(52, Math.floor((rightPageWidth - 16) / habits.length) - 4))
+    : 36;
+  // If habits overflow the available width, let the habit panel scroll horizontally
+  const habitsOverflow = habits.length > 0 && habits.length * (cellSize + 2) > rightPageWidth;
 
   // Render only the chosen view on phone/tablet (the spread is desktop-only)
   const showMoments = isDesktop || view === 'moments';
@@ -443,15 +444,15 @@ export default function JournalScreen() {
                       key={h.id}
                       style={{
                         width: cellSize + 2, alignItems: 'center',
-                        height: 56, justifyContent: 'flex-end', paddingBottom: 6,
+                        height: 68, justifyContent: 'flex-end', paddingBottom: 6,
                       }}>
                       <Text
-                        numberOfLines={2}
+                        numberOfLines={3}
                         style={{
-                          fontFamily: FONT_MONO, fontSize: 9.5,
+                          fontFamily: FONT_MONO, fontSize: 10,
                           color: penColor, fontWeight: '700',
                           transform: [{ rotate: '-50deg' }],
-                          width: 70, textAlign: 'left',
+                          width: 90, textAlign: 'left',
                         }}>
                         {h.name}
                       </Text>
