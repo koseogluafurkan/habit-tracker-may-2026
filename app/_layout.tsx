@@ -2,13 +2,15 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { AddToHomeScreenBanner } from '@/components/AddToHomeScreenBanner';
+import { LoginScreen } from '@/components/auth/LoginScreen';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { DaySelectionProvider } from '@/contexts/DaySelectionContext';
 import { DatabaseProvider, useDatabase } from '@/contexts/DatabaseContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
@@ -20,7 +22,6 @@ import { useResponsive } from '@/hooks/useResponsive';
 let VercelAnalytics: React.FC = () => null;
 let VercelSpeedInsights: React.FC = () => null;
 try {
-  // dynamic require so React Native (native) builds don't crash
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   VercelAnalytics = require('@vercel/analytics/react').Analytics;
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -31,6 +32,7 @@ export { ErrorBoundary } from 'expo-router';
 
 SplashScreen.preventAutoHideAsync();
 
+/** Gated content: only shown when the user is authenticated. */
 function AppShell() {
   const { contentMaxWidth } = useResponsive();
   const t = useTheme();
@@ -62,6 +64,43 @@ function AppShell() {
   );
 }
 
+/**
+ * AuthGate — sits between ThemeProvider and the rest of the app.
+ * - loading: show a tiny spinner (session check, <300ms on subsequent visits)
+ * - unauthenticated: show LoginScreen
+ * - authenticated: render the full app inside DatabaseProvider
+ */
+function AuthGate() {
+  const { state } = useAuth();
+  const t = useTheme();
+  const { contentMaxWidth } = useResponsive();
+
+  if (state.status === 'loading') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.paper }}>
+        <ActivityIndicator size="large" color={t.accent} />
+      </View>
+    );
+  }
+
+  if (state.status === 'unauthenticated') {
+    return (
+      <View style={{ flex: 1, maxWidth: contentMaxWidth, width: '100%', alignSelf: 'center' }}>
+        <LoginScreen />
+      </View>
+    );
+  }
+
+  // Authenticated
+  return (
+    <DatabaseProvider>
+      <DaySelectionProvider>
+        <AppShell />
+      </DaySelectionProvider>
+    </DatabaseProvider>
+  );
+}
+
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -85,14 +124,12 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <DatabaseProvider>
-          <DaySelectionProvider>
-            <StatusBar style="auto" />
-            <AppShell />
-            <VercelAnalytics />
-            <VercelSpeedInsights />
-          </DaySelectionProvider>
-        </DatabaseProvider>
+        <AuthProvider>
+          <StatusBar style="auto" />
+          <AuthGate />
+          <VercelAnalytics />
+          <VercelSpeedInsights />
+        </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

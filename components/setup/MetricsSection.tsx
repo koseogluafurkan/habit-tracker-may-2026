@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { FONT_BODY, FONT_MONO } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -10,6 +10,7 @@ import {
   getMetricDefinitions,
 } from '@/db/operations';
 import type { MetricDefinition } from '@/db/schema';
+import { confirmDestructive, showAlert } from '@/utils/alert';
 
 export function MetricsSection() {
   const t = useTheme();
@@ -30,14 +31,27 @@ export function MetricsSection() {
 
   const handleAdd = async () => {
     if (!name.trim()) return;
-    const min = parseFloat(minVal); const max = parseFloat(maxVal);
+    const min = parseFloat(minVal);
+    const max = parseFloat(maxVal);
     if (isNaN(min) || isNaN(max) || max <= min) {
-      Alert.alert('Invalid range', 'Max must be greater than min.');
+      showAlert('Invalid range', 'Max must be greater than min.');
       return;
     }
     await createMetricDefinition({ name: name.trim(), scale, minVal: min, maxVal: max });
     setName(''); setMinVal('1'); setMaxVal('10');
     refresh();
+  };
+
+  const handleDelete = async (m: MetricDefinition) => {
+    const ok = await confirmDestructive(
+      'Delete metric?',
+      `${m.name} — all logged values will also be deleted.`,
+      'Delete',
+    );
+    if (ok) {
+      await deleteMetricDefinition(m.id);
+      refresh();
+    }
   };
 
   return (
@@ -47,7 +61,12 @@ export function MetricsSection() {
       </Text>
 
       {items.map((m, idx) => (
-        <View key={m.id} style={[styles.row, { borderBottomColor: t.rule, borderBottomWidth: idx < items.length - 1 ? StyleSheet.hairlineWidth : 0 }]}>
+        <View
+          key={m.id}
+          style={[
+            styles.row,
+            { borderBottomColor: t.rule, borderBottomWidth: idx < items.length - 1 ? StyleSheet.hairlineWidth : 0 },
+          ]}>
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: FONT_BODY, fontSize: 15, color: t.ink.black, fontWeight: '600' }}>
               {m.name}
@@ -57,17 +76,12 @@ export function MetricsSection() {
             </Text>
           </View>
           <Pressable
-            onPress={() => Alert.alert(
-              'Delete metric?',
-              `${m.name} — all logs will be cascade-deleted.`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: async () => { await deleteMetricDefinition(m.id); refresh(); } },
-              ],
-            )}
-            hitSlop={6}
-            style={{ paddingHorizontal: 6 }}>
-            <Text style={{ fontFamily: FONT_MONO, fontSize: 10, color: t.ink.red, letterSpacing: 1 }}>REMOVE</Text>
+            onPress={() => handleDelete(m)}
+            hitSlop={12}
+            style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+            <Text style={{ fontFamily: FONT_MONO, fontSize: 10, color: t.ink.red, letterSpacing: 1, fontWeight: '700' }}>
+              REMOVE
+            </Text>
           </Pressable>
         </View>
       ))}
@@ -79,6 +93,8 @@ export function MetricsSection() {
           placeholderTextColor={t.faded}
           value={name}
           onChangeText={setName}
+          onSubmitEditing={handleAdd}
+          returnKeyType="done"
         />
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {(['integer', 'float'] as const).map((s) => {

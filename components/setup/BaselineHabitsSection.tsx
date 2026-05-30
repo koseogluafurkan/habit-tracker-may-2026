@@ -3,7 +3,9 @@
 // Defaults to the current month on mount.
 
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { showAlert } from '@/utils/alert';
 import { format } from 'date-fns';
 
 import { FONT_BODY, FONT_MONO, HABIT_COLORS, HABIT_TYPES, type HabitColor, type HabitType } from '@/constants/theme';
@@ -37,7 +39,7 @@ export function BaselineHabitsSection() {
   const handleAdd = async () => {
     if (!habitName.trim()) return;
     if (habits.length >= 8) {
-      Alert.alert('Keep it focused', 'Track no more than 8 habits per month.');
+      showAlert('Keep it focused', 'Track no more than 8 habits per month.');
       return;
     }
     await addHabit(habitName.trim(), habitColor, habitType);

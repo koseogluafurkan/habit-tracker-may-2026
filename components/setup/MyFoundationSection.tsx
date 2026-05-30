@@ -7,7 +7,9 @@
 // Full CRUD: every item is user-managed. No hardcoded lists.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { confirmDestructive } from '@/utils/alert';
 
 import {
   FONT_BODY,
@@ -210,11 +212,9 @@ function SubSection({ config }: { config: (typeof SUB_SECTIONS)[number] }) {
               item={item}
               accentColor={accentColor}
               onEdit={() => { setEditingId(item.id); setEditDraft(item.text); }}
-              onDelete={() => {
-                Alert.alert('Delete this item?', item.text, [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Delete', style: 'destructive', onPress: async () => { await deletePersonalSetup(item.id); refresh(); } },
-                ]);
+              onDelete={async () => {
+                const ok = await confirmDestructive('Delete this item?', item.text);
+                if (ok) { await deletePersonalSetup(item.id); refresh(); }
               }}
               onToggleStatus={async () => {
                 await updatePersonalSetup(item.id, { status: item.status === 'done' ? 'active' : 'done' });

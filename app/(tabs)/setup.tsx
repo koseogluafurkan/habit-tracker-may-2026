@@ -30,6 +30,7 @@ import {
 } from '@/constants/theme';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { useTheme, useThemeSettings } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { upsertMonthConfig } from '@/db/operations';
 import { useMonthData } from '@/hooks/useMonthData';
 import { useBottomPadding } from '@/hooks/useBottomPadding';
@@ -51,6 +52,8 @@ function SectionLabel({ children, color, borderColor }: { children: React.ReactN
 export default function SetupScreen() {
   const t = useTheme();
   const { settings, setTone, setDensity, setAesthetic, setFollowSystem } = useThemeSettings();
+  const { state: authState, signOut } = useAuth();
+  const userEmail = authState.status === 'authenticated' ? authState.user.email : null;
   const insets = useSafeAreaInsets();
   const bottomPadding = useBottomPadding();
   const { columns } = useResponsive();
@@ -330,9 +333,34 @@ export default function SetupScreen() {
           </View>
         </View>
 
-        {/* §IX Data */}
+        {/* §IX Account */}
         <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
-          §IX · DATA BACKUP
+          §IX · ACCOUNT
+        </SectionLabel>
+
+        {userEmail ? (
+          <View style={{ marginBottom: t.sp.md, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: FONT_MONO, fontSize: 10, letterSpacing: 1.5, color: t.faded, marginBottom: 2 }}>
+                SIGNED IN AS
+              </Text>
+              <Text style={{ fontFamily: FONT_BODY, fontSize: 15, color: t.ink.black, fontWeight: '600' }}>
+                {userEmail}
+              </Text>
+            </View>
+            <Pressable
+              onPress={signOut}
+              style={{ borderWidth: 1.5, borderColor: t.rule, paddingHorizontal: 14, paddingVertical: 10 }}>
+              <Text style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: 1, color: t.faded, fontWeight: '700' }}>
+                SIGN OUT
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* §X Data */}
+        <SectionLabel color={t.ink.black} borderColor={t.ink.black}>
+          §X · DATA BACKUP
         </SectionLabel>
 
         <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.faded, marginBottom: t.sp.md, lineHeight: 20 }}>

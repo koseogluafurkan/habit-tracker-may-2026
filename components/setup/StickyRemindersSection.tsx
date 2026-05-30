@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { confirmDestructive } from '@/utils/alert';
 
 import { FONT_BODY, FONT_MONO } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -61,10 +63,10 @@ export function StickyRemindersSection() {
               ) : null}
             </View>
             <Pressable
-              onPress={() => Alert.alert('Delete reminder?', it.text, [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => remove(it.id) },
-              ])}
+              onPress={async () => {
+                const ok = await confirmDestructive('Delete reminder?', it.text);
+                if (ok) remove(it.id);
+              }}
               hitSlop={6}
               style={{ paddingHorizontal: 6 }}>
               <Text style={{ fontFamily: FONT_MONO, fontSize: 14, color: t.ink.red }}>×</Text>
