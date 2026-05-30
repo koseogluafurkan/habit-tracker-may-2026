@@ -1,13 +1,11 @@
 // ─── CustomTabBar ───────────────────────────────────────────────────────────
-// Replaces expo-router's default tab bar so countdown chips can render
-// inline ALONGSIDE the standard tabs (not in a separate dock).
-//
-// Navigation uses expo-router's `router.navigate` — more reliable than the
-// internal React Navigation `navigation.navigate` inside expo-router.
+// Uses the React Navigation `navigation` prop (which expo-router passes to
+// custom tab bars). Emitting `tabPress` then calling navigation.navigate is
+// the canonical way to switch tabs — router.navigate() was doing a stack
+// *push* inside the navigator instead of switching the selected tab.
 
 import { useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
-import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONT_BODY, FONT_MONO } from '@/constants/theme';
@@ -16,15 +14,6 @@ import { useCountdowns, formatDaysUntil } from '@/hooks/useCountdowns';
 import type { Countdown } from '@/db/schema';
 
 import { CountdownEditModal } from './countdowns/CountdownEditModal';
-
-// Map each tab name → its expo-router path
-const TAB_PATH: Record<string, string> = {
-  morning: '/(tabs)/morning',
-  index:   '/(tabs)/',
-  journal: '/(tabs)/journal',
-  graphs:  '/(tabs)/graphs',
-  setup:   '/(tabs)/setup',
-};
 
 const TAB_ICONS: Record<string, string> = {
   morning: '☀',
@@ -42,21 +31,18 @@ const TAB_TITLES: Record<string, string> = {
   setup:   'SETUP',
 };
 
-// Detect which tab is currently active from the URL path
-function isTabActive(routeName: string, pathname: string): boolean {
-  if (routeName === 'index') return pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/';
-  return pathname.endsWith(`/${routeName}`);
-}
+type Route = { key: string; name: string };
 
-// expo-router doesn't re-export BottomTabBarProps; we only use `state.routes`.
-type TabBarProps = {
-  state: { routes: Array<{ key: string; name: string }>; index: number };
+// Loose props type — expo-router passes the full React Navigation props
+// but we only need state + navigation.
+type Props = {
+  state: { routes: Route[]; index: number };
+  navigation: any;
 };
 
-export function CustomTabBar({ state }: TabBarProps) {
+export function CustomTabBar({ state, navigation }: Props) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const pathname = usePathname();
   const { items: countdowns } = useCountdowns();
   const [editing, setEditing] = useState<Countdown | null>(null);
 
@@ -66,23 +52,21 @@ export function CustomTabBar({ state }: TabBarProps) {
 
   return (
     <>
-      <View
-        style={{
-          flexDirection: 'row',
-          backgroundColor: t.paper,
-          borderTopColor: t.rule,
-          borderTopWidth: 1,
-          paddingTop: 8,
-          paddingBottom: safeBottom + 4,
-          alignItems: 'stretch',
-        }}>
+      <View style={{
+        flexDirection: 'row',
+        backgroundColor: t.paper,
+        borderTopColor: t.rule,
+        borderTopWidth: 1,
+        paddingTop: 8,
+        paddingBottom: safeBottom + 4,
+        alignItems: 'stretch',
+      }}>
 
         {/* Standard tabs */}
-        {state.routes.map((route) => {
-          const focused = isTabActive(route.name, pathname);
+        {state.routes.map((route, i) => {
+          const focused = state.index === i;
           const icon    = TAB_ICONS[route.name]  ?? '•';
           const label   = TAB_TITLES[route.name] ?? route.name.toUpperCase();
-          const path    = TAB_PATH[route.name];
 
           return (
             <Pressable
@@ -91,8 +75,15 @@ export function CustomTabBar({ state }: TabBarProps) {
               accessibilityState={{ selected: focused }}
               accessibilityLabel={label}
               onPress={() => {
-                if (!focused && path) {
-                  router.navigate(path as any);
+                // Emit tabPress so expo-router/React Navigation can handle
+                // it correctly (focus, scroll-to-top, etc.)
+                const event = navigation.emit({
+                  type: 'tabPress',
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!focused && !event.defaultPrevented) {
+                  navigation.navigate(route.name);
                 }
               }}
               style={{
@@ -125,7 +116,7 @@ export function CustomTabBar({ state }: TabBarProps) {
           );
         })}
 
-        {/* Countdown chips — flex:1 so spacing is dynamic */}
+        {/* Countdown chips */}
         {countdowns.map((c) => {
           const days = formatDaysUntil(c.targetDate);
           const isPast = days.endsWith('ago');
@@ -148,16 +139,14 @@ export function CustomTabBar({ state }: TabBarProps) {
               <Text style={{ fontSize: 16, lineHeight: 22 }}>
                 {c.icon || '⏳'}
               </Text>
-              <Text
-                numberOfLines={1}
-                style={{
-                  fontFamily: FONT_BODY,
-                  fontSize: 10,
-                  fontWeight: '700',
-                  marginTop: 2,
-                  color: t.ink.black,
-                  maxWidth: '95%',
-                }}>
+              <Text numberOfLines={1} style={{
+                fontFamily: FONT_BODY,
+                fontSize: 10,
+                fontWeight: '700',
+                marginTop: 2,
+                color: t.ink.black,
+                maxWidth: '95%',
+              }}>
                 {c.label}
               </Text>
               <Text style={{
