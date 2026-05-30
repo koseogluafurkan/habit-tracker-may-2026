@@ -36,6 +36,7 @@ import { useBottomPadding } from '@/hooks/useBottomPadding';
 import { useMonthData } from '@/hooks/useMonthData';
 import { useResponsive } from '@/hooks/useResponsive';
 import { getDateForDay, getDaysInMonthCount, shiftMonth, toDateKey } from '@/utils/dates';
+import { isHabitActiveOn } from '@/db/operations';
 import { FONT_BODY, FONT_HEADING, FONT_MONO, getPenColor } from '@/constants/theme';
 import { DoubleRule } from '@/components/journal/atoms/DoubleRule';
 import { GridOverlay } from '@/components/journal/atoms/GridOverlay';
@@ -136,22 +137,26 @@ function DayRow({
         ) : null}
       </View>
 
-      {/* RIGHT — Habit matrix row */}
+      {/* RIGHT — Habit matrix row (inactive/historical cells are dimmed + read-only) */}
       <View style={{
         flexDirection: 'row', alignItems: 'center',
         paddingHorizontal: 4, paddingVertical: 4,
       }}>
-        {habits.map((h) => (
-          <View key={h.id} style={{ margin: 1 }}>
-            <HabitCell
-              color={h.color as HabitColor}
-              type={h.type as 'boolean' | 'numeric'}
-              value={habitValues[h.id]}
-              onPress={() => onCellPress(h)}
-              size={cellSize}
-            />
-          </View>
-        ))}
+        {habits.map((h) => {
+          const active = isHabitActiveOn(h, dateKey);
+          return (
+            <View key={h.id} style={{ margin: 1, opacity: active ? 1 : 0.3 }}>
+              <HabitCell
+                color={h.color as HabitColor}
+                type={h.type as 'boolean' | 'numeric'}
+                value={habitValues[h.id]}
+                onPress={active ? () => onCellPress(h) : undefined}
+                readOnly={!active}
+                size={cellSize}
+              />
+            </View>
+          );
+        })}
       </View>
     </View>
   );

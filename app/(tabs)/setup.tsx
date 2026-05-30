@@ -140,6 +140,25 @@ export default function SetupScreen() {
               {formatMonthYear(year, month)}
             </Text>
           </View>
+          {/* Signed-in email — always visible at top */}
+          {userEmail ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 10 }}>
+              <Text style={{ fontFamily: FONT_MONO, fontSize: 10, color: t.faded, letterSpacing: 1, flex: 1 }}>
+                ⚿ {userEmail}
+              </Text>
+              <Pressable
+                onPress={signOut}
+                hitSlop={8}
+                style={{
+                  borderWidth: 1.5, borderColor: t.ink.red,
+                  paddingHorizontal: 12, paddingVertical: 6,
+                }}>
+                <Text style={{ fontFamily: FONT_MONO, fontSize: 11, color: t.ink.red, fontWeight: '700', letterSpacing: 1 }}>
+                  SIGN OUT
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       </View>
 

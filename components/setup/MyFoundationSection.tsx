@@ -117,11 +117,11 @@ function ItemRow({
         ) : null}
       </View>
 
-      <Pressable onPress={onEdit} hitSlop={6} style={{ paddingHorizontal: 6 }}>
-        <Text style={{ fontFamily: FONT_MONO, fontSize: 10, color: t.accent, letterSpacing: 1 }}>EDIT</Text>
+      <Pressable onPress={onEdit} hitSlop={10} style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
+        <Text style={{ fontFamily: FONT_MONO, fontSize: 11, color: t.accent, letterSpacing: 1, fontWeight: '700' }}>EDIT</Text>
       </Pressable>
-      <Pressable onPress={onDelete} hitSlop={6} style={{ paddingHorizontal: 6 }}>
-        <Text style={{ fontFamily: FONT_MONO, fontSize: 10, color: t.ink.red, letterSpacing: 1 }}>×</Text>
+      <Pressable onPress={onDelete} hitSlop={10} style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
+        <Text style={{ fontFamily: FONT_MONO, fontSize: 11, color: t.ink.red, letterSpacing: 1, fontWeight: '700' }}>REMOVE</Text>
       </Pressable>
     </View>
   );

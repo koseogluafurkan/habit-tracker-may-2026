@@ -20,10 +20,20 @@ import type {
   UserSettings,
 } from './schema';
 
+/**
+ * Returns all habits for a month, including soft-deleted ones that had activity
+ * during this month (needed for month-view history).
+ * Use `isHabitActiveOn` to determine interactivity per-day.
+ */
 export async function getHabitsForMonth(year: number, month: number): Promise<Habit[]> {
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
   const snapshot = await getSnapshot();
   return snapshot.habits
-    .filter((h) => h.year === year && h.month === month)
+    .filter((h) => {
+      if (h.year !== year || h.month !== month) return false;
+      // Include active habits AND habits deleted AFTER the month started (history)
+      return h.deletedAt === null || h.deletedAt > monthStart;
+    })
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
@@ -43,6 +53,7 @@ export async function createHabit(data: {
     color: data.color,
     type: data.type,
     sortOrder: data.sortOrder ?? 0,
+    deletedAt: null,
   };
   await updateSnapshot((s) => ({ ...s, habits: [...s.habits, habit] }));
   return habit;
@@ -58,12 +69,30 @@ export async function updateHabit(
   }));
 }
 
+/**
+ * Soft-delete a habit: sets deletedAt = today.
+ * - Today and future days: habit no longer appears in daily view.
+ * - Past days (logs before today): kept as read-only history.
+ * - Logs with no value for today+ could be cleaned up later, but for safety
+ *   we keep all logs (they'll be filtered in UI by date).
+ */
 export async function deleteHabit(id: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
   await updateSnapshot((s) => ({
     ...s,
-    habits: s.habits.filter((h) => h.id !== id),
-    habitLogs: s.habitLogs.filter((l) => l.habitId !== id),
+    habits: s.habits.map((h) => h.id === id ? { ...h, deletedAt: today } : h),
+    // Remove habit logs from today onwards that have NO value (no meaningful data)
+    // Logs from past days (before today) are kept as history.
+    // We can't check date from HabitLog directly, so we take a conservative approach:
+    // keep ALL logs — UI filters by date.
   }));
+}
+
+/** Returns true if a habit was active on the given dateKey (YYYY-MM-DD). */
+export function isHabitActiveOn(habit: Habit, dateKey: string): boolean {
+  if (habit.deletedAt === null) return true;
+  // deletedAt is the first day the habit is INACTIVE
+  return dateKey < habit.deletedAt;
 }
 
 export async function getOrCreateDayEntry(date: Date): Promise<DayEntry> {
@@ -350,7 +379,7 @@ export async function importAllData(data: {
   dayIntentions?: DayIntention[];
 }) {
   await replaceSnapshot({
-    habits: data.habits ?? [],
+    habits: (data.habits ?? []).map((h) => ({ ...h, deletedAt: h.deletedAt ?? null })),
     dayEntries: data.dayEntries ?? [],
     habitLogs: (data.habitLogs ?? []).map((l) => ({ ...l, note: l.note ?? null })),
     metricDefinitions: data.metricDefinitions ?? [],

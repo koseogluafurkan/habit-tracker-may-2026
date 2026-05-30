@@ -2,12 +2,12 @@
 // Replaces expo-router's default tab bar so countdown chips can render
 // inline ALONGSIDE the standard tabs (not in a separate dock).
 //
-// Layout: standard tabs + countdowns, all `flex: 1` → equal share, dynamic spacing.
-// When 0 countdowns, the 5 tabs get full width each.
-// When N countdowns are added, all 5 + N items share the row.
+// Navigation uses expo-router's `router.navigate` — more reliable than the
+// internal React Navigation `navigation.navigate` inside expo-router.
 
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
+import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FONT_BODY, FONT_MONO } from '@/constants/theme';
@@ -16,6 +16,15 @@ import { useCountdowns, formatDaysUntil } from '@/hooks/useCountdowns';
 import type { Countdown } from '@/db/schema';
 
 import { CountdownEditModal } from './countdowns/CountdownEditModal';
+
+// Map each tab name → its expo-router path
+const TAB_PATH: Record<string, string> = {
+  morning: '/(tabs)/morning',
+  index:   '/(tabs)/',
+  journal: '/(tabs)/journal',
+  graphs:  '/(tabs)/graphs',
+  setup:   '/(tabs)/setup',
+};
 
 const TAB_ICONS: Record<string, string> = {
   morning: '☀',
@@ -33,23 +42,27 @@ const TAB_TITLES: Record<string, string> = {
   setup:   'SETUP',
 };
 
-// expo-router doesn't re-export the BottomTabBarProps type; structurally we only
-// need state + navigation. Keep loose typing here.
+// Detect which tab is currently active from the URL path
+function isTabActive(routeName: string, pathname: string): boolean {
+  if (routeName === 'index') return pathname === '/' || pathname === '/(tabs)' || pathname === '/(tabs)/';
+  return pathname.endsWith(`/${routeName}`);
+}
+
+// expo-router doesn't re-export BottomTabBarProps; we only use `state.routes`.
 type TabBarProps = {
   state: { routes: Array<{ key: string; name: string }>; index: number };
-  navigation: {
-    emit: (event: { type: string; target: string; canPreventDefault: boolean }) => { defaultPrevented: boolean };
-    navigate: (name: never) => void;
-  };
 };
 
-export function CustomTabBar({ state, navigation }: TabBarProps) {
+export function CustomTabBar({ state }: TabBarProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
   const { items: countdowns } = useCountdowns();
   const [editing, setEditing] = useState<Countdown | null>(null);
 
-  const safeBottom = Platform.OS === 'web' ? Math.max(insets.bottom, 16) : Math.max(insets.bottom, 6);
+  const safeBottom = Platform.OS === 'web'
+    ? Math.max(insets.bottom, 16)
+    : Math.max(insets.bottom, 6);
 
   return (
     <>
@@ -63,13 +76,14 @@ export function CustomTabBar({ state, navigation }: TabBarProps) {
           paddingBottom: safeBottom + 4,
           alignItems: 'stretch',
         }}>
-        {/* Standard tabs */}
-        {state.routes.map((route, i) => {
-          const focused = state.index === i;
-          const icon  = TAB_ICONS[route.name]  ?? '•';
-          const label = TAB_TITLES[route.name] ?? route.name.toUpperCase();
 
-          // Active tab gets a top accent line for clarity
+        {/* Standard tabs */}
+        {state.routes.map((route) => {
+          const focused = isTabActive(route.name, pathname);
+          const icon    = TAB_ICONS[route.name]  ?? '•';
+          const label   = TAB_TITLES[route.name] ?? route.name.toUpperCase();
+          const path    = TAB_PATH[route.name];
+
           return (
             <Pressable
               key={route.key}
@@ -77,13 +91,8 @@ export function CustomTabBar({ state, navigation }: TabBarProps) {
               accessibilityState={{ selected: focused }}
               accessibilityLabel={label}
               onPress={() => {
-                const event = navigation.emit({
-                  type: 'tabPress',
-                  target: route.key,
-                  canPreventDefault: true,
-                });
-                if (!focused && !event.defaultPrevented) {
-                  navigation.navigate(route.name as never);
+                if (!focused && path) {
+                  router.navigate(path as any);
                 }
               }}
               style={{
@@ -91,17 +100,12 @@ export function CustomTabBar({ state, navigation }: TabBarProps) {
                 alignItems: 'center',
                 justifyContent: 'flex-start',
                 paddingHorizontal: 2,
-                borderTopWidth: 2,
+                borderTopWidth: 2.5,
                 borderTopColor: focused ? t.accent : 'transparent',
                 marginTop: -8,
                 paddingTop: 6,
               }}>
-              <Text
-                style={{
-                  fontSize: 18,
-                  lineHeight: 22,
-                  color: focused ? t.accent : t.ink.black,
-                }}>
+              <Text style={{ fontSize: 18, lineHeight: 22, color: focused ? t.accent : t.ink.black }}>
                 {icon}
               </Text>
               <Text
@@ -112,9 +116,8 @@ export function CustomTabBar({ state, navigation }: TabBarProps) {
                   letterSpacing: 1.2,
                   marginTop: 2,
                   color: focused ? t.accent : t.ink.black,
-                  fontWeight: focused ? '700' : '600',
-                  // a11y: never below 60% opacity for inactive
-                  opacity: focused ? 1 : 0.82,
+                  fontWeight: '700',
+                  opacity: focused ? 1 : 0.75,
                 }}>
                 {label}
               </Text>
@@ -122,7 +125,7 @@ export function CustomTabBar({ state, navigation }: TabBarProps) {
           );
         })}
 
-        {/* Countdown chips — flex:1 like regular tabs so spacing is dynamic */}
+        {/* Countdown chips — flex:1 so spacing is dynamic */}
         {countdowns.map((c) => {
           const days = formatDaysUntil(c.targetDate);
           const isPast = days.endsWith('ago');
@@ -137,12 +140,12 @@ export function CustomTabBar({ state, navigation }: TabBarProps) {
                 alignItems: 'center',
                 justifyContent: 'flex-start',
                 paddingHorizontal: 2,
-                borderTopWidth: 2,
+                borderTopWidth: 2.5,
                 borderTopColor: isPast ? t.rule : t.ink.blue,
                 marginTop: -8,
                 paddingTop: 6,
               }}>
-              <Text style={{ fontSize: 16, lineHeight: 22, color: t.ink.black }}>
+              <Text style={{ fontSize: 16, lineHeight: 22 }}>
                 {c.icon || '⏳'}
               </Text>
               <Text
@@ -157,15 +160,14 @@ export function CustomTabBar({ state, navigation }: TabBarProps) {
                 }}>
                 {c.label}
               </Text>
-              <Text
-                style={{
-                  fontFamily: FONT_MONO,
-                  fontSize: 10,
-                  fontWeight: '700',
-                  letterSpacing: 0.5,
-                  color: isPast ? t.faded : t.ink.blue,
-                  marginTop: 1,
-                }}>
+              <Text style={{
+                fontFamily: FONT_MONO,
+                fontSize: 10,
+                fontWeight: '700',
+                letterSpacing: 0.5,
+                color: isPast ? t.faded : t.ink.blue,
+                marginTop: 1,
+              }}>
                 {days}
               </Text>
             </Pressable>
@@ -181,7 +183,3 @@ export function CustomTabBar({ state, navigation }: TabBarProps) {
     </>
   );
 }
-
-// (StyleSheet kept for potential future shared styles)
-const styles = StyleSheet.create({});
-void styles;

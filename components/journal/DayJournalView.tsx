@@ -26,6 +26,7 @@ import {
   DAILY_QUOTES, habitLabel,
   type HabitColor,
 } from '@/constants/theme';
+import { isHabitActiveOn } from '@/db/operations';
 import type { Habit } from '@/db/schema';
 import {
   formatDisplayDate,
@@ -453,8 +454,11 @@ export function DayJournalView() {
   const future  = isFutureDate(selectedDate);
   const today   = isToday(selectedDate);
 
-  const { habits }  = useHabits(year, month);
+  const { habits: allHabits } = useHabits(year, month);
   const { metrics } = useMetrics();
+  // Only show habits that were active on the selected date
+  const selectedDateKey = toDateKey(selectedDate);
+  const habits = allHabits.filter((h) => isHabitActiveOn(h, selectedDateKey));
   const { config: monthConfig } = useMonthData(year, month);
   const { refresh } = useDatabase();
   const {

@@ -10,6 +10,13 @@ export type Habit = {
   color: HabitColor;
   type: HabitType;
   sortOrder: number;
+  /**
+   * Soft-delete date (YYYY-MM-DD inclusive).
+   * null  → habit is still active.
+   * set   → habit was deactivated on this date; not shown from this day forward.
+   *         Historical logs (before this date) are kept as read-only history.
+   */
+  deletedAt: string | null;
 };
 
 export type DayEntry = {

@@ -59,10 +59,10 @@ let initPromise: Promise<DatabaseSnapshot> | null = null;
 
 // ─── Row mappers (camelCase ↔ snake_case) ──────────────────────────────────
 function habitFromRow(r: any): Habit {
-  return { id: r.id, year: r.year, month: r.month, name: r.name, color: r.color, type: r.type, sortOrder: r.sort_order ?? 0 };
+  return { id: r.id, year: r.year, month: r.month, name: r.name, color: r.color, type: r.type, sortOrder: r.sort_order ?? 0, deletedAt: r.deleted_at ?? null };
 }
 function habitToRow(h: Habit): any {
-  return { id: h.id, year: h.year, month: h.month, name: h.name, color: h.color, type: h.type, sort_order: h.sortOrder };
+  return { id: h.id, year: h.year, month: h.month, name: h.name, color: h.color, type: h.type, sort_order: h.sortOrder, deleted_at: h.deletedAt };
 }
 
 function dayEntryFromRow(r: any): DayEntry {
