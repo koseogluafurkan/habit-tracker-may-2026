@@ -6,7 +6,7 @@
 //   - Quick nav to the full Daily journal
 
 import { format } from 'date-fns';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -28,8 +28,9 @@ export default function MorningScreen() {
   const bottomPadding = useBottomPadding();
   const { isDesktop } = useResponsive();
 
-  const today = new Date();
-  const yesterday = shiftDay(today, -1);
+  // Memoize so hooks that take a Date in deps don't create a new object each render.
+  const today = useMemo(() => new Date(), []);
+  const yesterday = useMemo(() => shiftDay(today, -1), [today]);
 
   const { items, intention, isCompleted, toggle, saveIntention } = useMorningRoutine(today);
   const { entry: yEntry } = useDayEntry(yesterday);

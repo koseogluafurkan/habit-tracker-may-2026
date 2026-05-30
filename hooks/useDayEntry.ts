@@ -21,6 +21,10 @@ export function useDayEntry(date: Date) {
   const [metricLogs, setMetricLogs] = useState<MetricLog[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Use stable string key (not the Date object) as dep — callers often pass `new Date()`
+  // which creates a new reference every render, causing load to be recreated infinitely.
+  const dateKeyStable = toDateKey(date);
+
   const load = useCallback(async () => {
     setLoading(true);
     const existing = await getDayEntryByDate(date);
@@ -38,7 +42,8 @@ export function useDayEntry(date: Date) {
       setMetricLogs([]);
     }
     setLoading(false);
-  }, [date, refreshKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateKeyStable, refreshKey]);
 
   useEffect(() => {
     load();
