@@ -8,7 +8,7 @@ import { SleepChart } from '@/components/charts/SleepChart';
 import { DoubleRule } from '@/components/journal/atoms/DoubleRule';
 import { GridOverlay } from '@/components/journal/atoms/GridOverlay';
 import { useTheme } from '@/contexts/ThemeContext';
-import { FONT_HEADING, FONT_MONO } from '@/constants/theme';
+import { FONT_BODY, FONT_HEADING, FONT_MONO } from '@/constants/theme';
 import type { MetricDefinition } from '@/db/schema';
 import { useMetrics } from '@/hooks/useMetrics';
 import { useMonthData } from '@/hooks/useMonthData';
@@ -114,7 +114,16 @@ export default function GraphsScreen() {
         </View>
 
         {!loading && (
-          <SleepChart year={year} month={month} dayEntries={dayEntries} />
+          <>
+            <SleepChart year={year} month={month} dayEntries={dayEntries} />
+            {dayEntries.every((e) => e.sleepHours == null) && dayEntries.length > 0 ? (
+              <View style={{ paddingHorizontal: 4, paddingTop: 8, paddingBottom: 4 }}>
+                <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.faded, lineHeight: 20 }}>
+                  Henüz uyku verisi yok. Her sabah Morning ekranından önceki geceyi kaydet — grafik kendiliğinden oluşacak.
+                </Text>
+              </View>
+            ) : null}
+          </>
         )}
 
         {/* Correlation section */}
@@ -278,15 +287,14 @@ export default function GraphsScreen() {
             )}
           </>
         ) : (
-          <Text style={{
-            fontFamily: FONT_MONO,
-            fontSize: t.fs.meta,
-            color: t.faded,
-            fontStyle: 'italic',
-            marginTop: t.sp.sm,
-          }}>
-            Add at least two metrics in Setup to enable correlation charts.
-          </Text>
+          <View style={{ marginTop: t.sp.sm, gap: 8 }}>
+            <Text style={{ fontFamily: FONT_MONO, fontSize: t.fs.meta, color: t.faded, fontStyle: 'italic' }}>
+              Add at least two metrics in Setup to enable correlation charts.
+            </Text>
+            <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.faded, lineHeight: 20 }}>
+              Veri geldikçe grafik oluşacak. Her gün bir satır — devam et.
+            </Text>
+          </View>
         )}
       </ScrollView>
     </View>

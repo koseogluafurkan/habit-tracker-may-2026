@@ -94,7 +94,7 @@ function DayRow({
         </Text>
       </Pressable>
 
-      {/* LEFT — Memorable Moment + (optional) Reminder */}
+      {/* LEFT — Memorable Moment + habit dots + (optional) Reminder */}
       <View style={{
         flex: 1, paddingHorizontal: 10, paddingVertical: 4,
         borderRightWidth: 1, borderRightColor: t.rule, justifyContent: 'center',
@@ -110,6 +110,29 @@ function DayRow({
           onChangeText={setMomentDraft}
           onBlur={() => onMomentEdit(momentDraft)}
         />
+        {/* Analog notebook dots — one per habit, filled if completed */}
+        {habits.length > 0 ? (
+          <View style={{ flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+            {habits.map((h) => {
+              const val = habitValues[h.id];
+              const done = val === 'true' || (val != null && val !== '');
+              const active = isHabitActiveOn(h, dateKey);
+              const dotColor = h.color === 'blue' ? t.ink.blue : h.color === 'red' ? t.ink.red : t.ink.black;
+              return (
+                <View
+                  key={h.id}
+                  style={{
+                    width: 7, height: 7, borderRadius: 3.5,
+                    backgroundColor: done ? dotColor : 'transparent',
+                    borderWidth: 1,
+                    borderColor: active ? dotColor : t.rule,
+                    opacity: active ? (done ? 1 : 0.4) : 0.2,
+                  }}
+                />
+              );
+            })}
+          </View>
+        ) : null}
         {reminder && !showReminder ? (
           <Pressable onPress={() => setShowReminder(true)}>
             <Text style={{

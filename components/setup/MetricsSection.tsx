@@ -17,10 +17,11 @@ export function MetricsSection() {
   const { refreshKey, refresh } = useDatabase();
   const [items, setItems] = useState<MetricDefinition[]>([]);
 
-  const [name, setName]     = useState('');
-  const [scale, setScale]   = useState<'integer' | 'float'>('integer');
-  const [minVal, setMinVal] = useState('1');
-  const [maxVal, setMaxVal] = useState('10');
+  const [name, setName]             = useState('');
+  const [description, setDescription] = useState('');
+  const [scale, setScale]           = useState<'integer' | 'float'>('integer');
+  const [minVal, setMinVal]         = useState('1');
+  const [maxVal, setMaxVal]         = useState('10');
 
   const load = useCallback(async () => {
     setItems(await getMetricDefinitions());
@@ -37,8 +38,8 @@ export function MetricsSection() {
       showAlert('Invalid range', 'Max must be greater than min.');
       return;
     }
-    await createMetricDefinition({ name: name.trim(), scale, minVal: min, maxVal: max });
-    setName(''); setMinVal('1'); setMaxVal('10');
+    await createMetricDefinition({ name: name.trim(), scale, minVal: min, maxVal: max, description: description.trim() || null });
+    setName(''); setDescription(''); setMinVal('1'); setMaxVal('10');
     refresh();
   };
 
@@ -74,6 +75,11 @@ export function MetricsSection() {
             <Text style={{ fontFamily: FONT_MONO, fontSize: 10, color: t.accent, marginTop: 2, letterSpacing: 1 }}>
               {m.scale.toUpperCase()} · {m.minVal}–{m.maxVal}
             </Text>
+            {m.description ? (
+              <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 12, color: t.faded, marginTop: 2, lineHeight: 16 }}>
+                {m.description}
+              </Text>
+            ) : null}
           </View>
           <Pressable
             onPress={() => handleDelete(m)}
@@ -93,8 +99,16 @@ export function MetricsSection() {
           placeholderTextColor={t.faded}
           value={name}
           onChangeText={setName}
-          onSubmitEditing={handleAdd}
+          returnKeyType="next"
+        />
+        <TextInput
+          style={[styles.input, { borderColor: t.rule, color: t.ink.black, backgroundColor: bg, fontFamily: FONT_BODY }]}
+          placeholder="Description (optional — e.g. Morning Activation 1-10 means…)"
+          placeholderTextColor={t.faded}
+          value={description}
+          onChangeText={setDescription}
           returnKeyType="done"
+          onSubmitEditing={handleAdd}
         />
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {(['integer', 'float'] as const).map((s) => {

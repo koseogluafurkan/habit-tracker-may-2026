@@ -19,6 +19,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useBottomPadding } from '@/hooks/useBottomPadding';
 import { useDayEntry } from '@/hooks/useDayEntry';
 import { useMorningRoutine } from '@/hooks/useMorningRoutine';
+import { useMonthData } from '@/hooks/useMonthData';
 import { useResponsive } from '@/hooks/useResponsive';
 import { shiftDay } from '@/utils/dates';
 
@@ -33,10 +34,27 @@ export default function MorningScreen() {
   const yesterday = useMemo(() => shiftDay(today, -1), [today]);
 
   const { items, intention, isCompleted, toggle, saveIntention } = useMorningRoutine(today);
-  const { entry: yEntry } = useDayEntry(yesterday);
+  const { entry: yEntry, saveSleep } = useDayEntry(yesterday);
+
+  // Month config for hyper-focus banner
+  const { config: monthConfig } = useMonthData(today.getFullYear(), today.getMonth() + 1);
 
   const [intentionDraft, setIntentionDraft] = useState('');
   useEffect(() => { setIntentionDraft(intention?.intention ?? ''); }, [intention]);
+
+  // Inline sleep inputs for yesterday
+  const [sleepHoursDraft, setSleepHoursDraft] = useState('');
+  const [sleepScoreDraft, setSleepScoreDraft] = useState('');
+  useEffect(() => {
+    setSleepHoursDraft(yEntry?.sleepHours != null ? String(yEntry.sleepHours) : '');
+    setSleepScoreDraft(yEntry?.sleepScore != null ? String(yEntry.sleepScore) : '');
+  }, [yEntry?.sleepHours, yEntry?.sleepScore]);
+
+  const handleSaveSleep = () => {
+    const h = parseFloat(sleepHoursDraft);
+    const s = parseInt(sleepScoreDraft, 10);
+    saveSleep(isNaN(h) ? null : h, isNaN(s) ? null : s);
+  };
 
   const completedCount = items.filter((it) => isCompleted(it.id)).length;
   const ratio = items.length > 0 ? completedCount / items.length : 0;
@@ -44,8 +62,8 @@ export default function MorningScreen() {
   const bg = t.dark ? 'rgba(255,240,200,0.04)' : 'rgba(255,250,235,0.6)';
 
   const sleepLine = yEntry?.sleepHours
-    ? `${yEntry.sleepHours}h${yEntry.sleepScore != null ? ` · score ${yEntry.sleepScore}/100` : ''}`
-    : '—';
+    ? `${yEntry.sleepHours}h${yEntry.sleepScore != null ? ` · ${yEntry.sleepScore}/100` : ''}`
+    : null;
 
   return (
     <View style={[styles.container, { backgroundColor: t.paper, paddingTop: insets.top + 8 }]}>
@@ -93,6 +111,23 @@ export default function MorningScreen() {
 
         <DoubleRule marginTop={8} color={t.ink.black} />
 
+        {/* Hyper-Focus banner — only shown if set in Setup */}
+        {monthConfig?.hyperFocus ? (
+          <View style={{
+            marginHorizontal: 20, marginTop: 16,
+            padding: 12, borderWidth: 1.5, borderLeftWidth: 4,
+            borderColor: t.ink.blue, borderLeftColor: t.ink.blue,
+            backgroundColor: t.dark ? 'rgba(30,58,138,0.22)' : 'rgba(30,58,138,0.08)',
+          }}>
+            <Text style={{ fontFamily: FONT_MONO, fontSize: 9, letterSpacing: 2, fontWeight: '700', color: t.dark ? '#93C5FD' : t.ink.blue, marginBottom: 4 }}>
+              ⚡ HYPER-FOCUS · {format(today, 'MMM').toUpperCase()}
+            </Text>
+            <Text style={{ fontFamily: FONT_BODY, fontSize: 15, fontWeight: '700', color: t.ink.black, lineHeight: 22 }}>
+              {monthConfig.hyperFocus}
+            </Text>
+          </View>
+        ) : null}
+
         {/* Two-column on desktop, single on mobile */}
         <View style={[
           styles.grid,
@@ -111,30 +146,49 @@ export default function MorningScreen() {
                 backgroundColor: bg,
               },
             ]}>
-              <Text style={{
-                fontFamily: FONT_HEADING,
-                fontSize: 28,
-                fontWeight: '700',
-                color: t.ink.black,
-                lineHeight: 32,
-              }}>
-                {sleepLine}
-              </Text>
-              {yEntry?.sleepHours != null ? (
-                <Text style={{
-                  fontFamily: FONT_BODY, fontStyle: 'italic',
-                  fontSize: 13, color: t.faded, marginTop: 4,
-                }}>
-                  {yEntry.sleepHours >= 7 ? 'Good rest. Use it.' : 'Short night. Be kind to yourself today.'}
-                </Text>
+              {sleepLine ? (
+                <>
+                  <Text style={{ fontFamily: FONT_HEADING, fontSize: 28, fontWeight: '700', color: t.ink.black, lineHeight: 32 }}>
+                    {sleepLine}
+                  </Text>
+                  <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.faded, marginTop: 4 }}>
+                    {(yEntry?.sleepHours ?? 0) >= 7 ? 'Good rest. Use it.' : 'Short night. Be kind to yourself today.'}
+                  </Text>
+                </>
               ) : (
-                <Text style={{
-                  fontFamily: FONT_BODY, fontStyle: 'italic',
-                  fontSize: 13, color: t.faded, marginTop: 4,
-                }}>
-                  No sleep logged. Tap below to record yesterday.
+                <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.faded }}>
+                  Dün kaç saat uyudun?
                 </Text>
               )}
+              {/* Inline sleep inputs */}
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: FONT_MONO, fontSize: 9, letterSpacing: 1, color: t.faded, marginBottom: 4 }}>SAAT</Text>
+                  <TextInput
+                    style={[styles.sleepInput, { borderColor: t.rule, color: t.ink.black, backgroundColor: bg, fontFamily: FONT_MONO }]}
+                    placeholder="7.5"
+                    placeholderTextColor={t.faded}
+                    keyboardType="decimal-pad"
+                    value={sleepHoursDraft}
+                    onChangeText={setSleepHoursDraft}
+                    onBlur={handleSaveSleep}
+                    returnKeyType="next"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: FONT_MONO, fontSize: 9, letterSpacing: 1, color: t.faded, marginBottom: 4 }}>SKOR /100</Text>
+                  <TextInput
+                    style={[styles.sleepInput, { borderColor: t.rule, color: t.ink.black, backgroundColor: bg, fontFamily: FONT_MONO }]}
+                    placeholder="80"
+                    placeholderTextColor={t.faded}
+                    keyboardType="number-pad"
+                    value={sleepScoreDraft}
+                    onChangeText={setSleepScoreDraft}
+                    onBlur={handleSaveSleep}
+                    returnKeyType="done"
+                  />
+                </View>
+              </View>
             </View>
 
             <View style={{ marginTop: 28 }}>
@@ -274,5 +328,11 @@ const styles = StyleSheet.create({
   cta: {
     padding: 16,
     alignItems: 'center',
+  },
+  sleepInput: {
+    borderWidth: 1,
+    padding: 8,
+    fontSize: 15,
+    textAlign: 'center',
   },
 });

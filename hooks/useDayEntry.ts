@@ -82,6 +82,15 @@ export function useDayEntry(date: Date) {
     [ensureEntry, refresh]
   );
 
+  const saveFreeNotes = useCallback(
+    async (text: string) => {
+      const e = await ensureEntry();
+      await updateDayEntry(e.id, { freeNotes: text || null });
+      refresh();
+    },
+    [ensureEntry, refresh]
+  );
+
   const toggleHabit = useCallback(
     async (habitId: string, currentValue?: string) => {
       const e = await ensureEntry();
@@ -128,6 +137,7 @@ export function useDayEntry(date: Date) {
     saveMemorableMoment,
     saveDayReminder,
     saveSleep,
+    saveFreeNotes,
     toggleHabit,
     setNumericHabit,
     setMetric,

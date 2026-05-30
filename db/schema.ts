@@ -26,6 +26,7 @@ export type DayEntry = {
   dayReminder: string | null;
   sleepHours: number | null;
   sleepScore: number | null;
+  freeNotes: string | null;       // Section VI free-form journal field
 };
 
 export type HabitLog = {
@@ -44,6 +45,7 @@ export type MetricDefinition = {
   minVal: number;
   maxVal: number;
   sortOrder: number;
+  description: string | null;    // short tooltip / reminder of what this metric means
 };
 
 export type MetricLog = {

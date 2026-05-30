@@ -66,10 +66,10 @@ function habitToRow(h: Habit): any {
 }
 
 function dayEntryFromRow(r: any): DayEntry {
-  return { id: r.id, date: r.date, memorableMoment: r.memorable_moment, dayReminder: r.day_reminder, sleepHours: r.sleep_hours, sleepScore: r.sleep_score };
+  return { id: r.id, date: r.date, memorableMoment: r.memorable_moment, dayReminder: r.day_reminder, sleepHours: r.sleep_hours, sleepScore: r.sleep_score, freeNotes: r.free_notes ?? null };
 }
 function dayEntryToRow(d: DayEntry): any {
-  return { id: d.id, date: d.date, memorable_moment: d.memorableMoment, day_reminder: d.dayReminder, sleep_hours: d.sleepHours, sleep_score: d.sleepScore };
+  return { id: d.id, date: d.date, memorable_moment: d.memorableMoment, day_reminder: d.dayReminder, sleep_hours: d.sleepHours, sleep_score: d.sleepScore, free_notes: d.freeNotes ?? null };
 }
 
 function habitLogFromRow(r: any): HabitLog {
@@ -80,10 +80,10 @@ function habitLogToRow(l: HabitLog): any {
 }
 
 function metricDefFromRow(r: any): MetricDefinition {
-  return { id: r.id, name: r.name, scale: r.scale, minVal: Number(r.min_val), maxVal: Number(r.max_val), sortOrder: r.sort_order ?? 0 };
+  return { id: r.id, name: r.name, scale: r.scale, minVal: Number(r.min_val), maxVal: Number(r.max_val), sortOrder: r.sort_order ?? 0, description: r.description ?? null };
 }
 function metricDefToRow(m: MetricDefinition): any {
-  return { id: m.id, name: m.name, scale: m.scale, min_val: m.minVal, max_val: m.maxVal, sort_order: m.sortOrder };
+  return { id: m.id, name: m.name, scale: m.scale, min_val: m.minVal, max_val: m.maxVal, sort_order: m.sortOrder, description: m.description ?? null };
 }
 
 function metricLogFromRow(r: any): MetricLog {

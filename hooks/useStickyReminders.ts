@@ -23,9 +23,15 @@ export function useStickyReminders(opts: { onlyActive?: boolean } = {}) {
 
   useEffect(() => { load(); }, [load]);
 
-  const add = useCallback(async (text: string, topic: string | null = null, dueDate: string | null = null) => {
-    await addStickyReminder(text, topic, dueDate);
-    refresh();
+  // Returns an error string on failure, null on success
+  const add = useCallback(async (text: string, topic: string | null = null, dueDate: string | null = null): Promise<string | null> => {
+    try {
+      await addStickyReminder(text, topic, dueDate);
+      refresh();
+      return null;
+    } catch (e) {
+      return String(e);
+    }
   }, [refresh]);
 
   const update = useCallback(async (id: string, data: Partial<StickyReminder>) => {

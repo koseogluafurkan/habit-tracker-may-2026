@@ -5,7 +5,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { showAlert } from '@/utils/alert';
 import { format } from 'date-fns';
 
 import { FONT_BODY, FONT_MONO, HABIT_COLORS, HABIT_TYPES, type HabitColor, type HabitType } from '@/constants/theme';
@@ -38,10 +37,6 @@ export function BaselineHabitsSection() {
 
   const handleAdd = async () => {
     if (!habitName.trim()) return;
-    if (habits.length >= 8) {
-      showAlert('Keep it focused', 'Track no more than 8 habits per month.');
-      return;
-    }
     await addHabit(habitName.trim(), habitColor, habitType);
     setHabitName('');
   };
@@ -101,6 +96,23 @@ export function BaselineHabitsSection() {
           );
         })
       )}
+
+      {/* Soft warning when >8 habits */}
+      {habits.length >= 8 ? (
+        <View style={{
+          marginTop: t.sp.sm, marginBottom: t.sp.sm, padding: 10,
+          borderWidth: 1, borderLeftWidth: 3,
+          borderColor: '#C8960C', borderLeftColor: '#C8960C',
+          backgroundColor: t.dark ? 'rgba(200,150,12,0.14)' : 'rgba(200,150,12,0.08)',
+        }}>
+          <Text style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#C8960C', letterSpacing: 1, fontWeight: '700' }}>
+            ⚠ {habits.length} HABİT — 8 ÖNERİLEN SINIRI GEÇTİNİZ
+          </Text>
+          <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 12, color: t.faded, marginTop: 3 }}>
+            Daha fazla ekleyebilirsiniz, ama odak için 8'de tutmanız önerilir.
+          </Text>
+        </View>
+      ) : null}
 
       {/* Add habit form */}
       <View style={[styles.addForm, { borderColor: t.rule, backgroundColor: bg, marginTop: t.sp.md }]}>

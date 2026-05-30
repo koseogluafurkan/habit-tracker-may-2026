@@ -95,6 +95,47 @@ export function isHabitActiveOn(habit: Habit, dateKey: string): boolean {
   return dateKey < habit.deletedAt;
 }
 
+/**
+ * Calculate current streak for a boolean habit.
+ * Iterates backward through dayEntries looking for consecutive days where the
+ * habit has value 'true'. Stops (and doesn't count) today if it has no log yet
+ * (i.e. today's entry simply missing counts as "not yet done, don't penalise").
+ * Returns 0 if never done, or the count of consecutive completed days ending
+ * on today (or the most recent logged day).
+ */
+export async function getHabitStreak(habitId: string, todayKey: string): Promise<number> {
+  const snapshot = await getSnapshot();
+  // Build a map: dateKey → completed
+  const logMap = new Map<string, boolean>();
+  for (const entry of snapshot.dayEntries) {
+    const log = snapshot.habitLogs.find((l) => l.dayEntryId === entry.id && l.habitId === habitId);
+    logMap.set(entry.date, log?.value === 'true');
+  }
+
+  // Walk backwards day by day from yesterday (skip today if not yet logged)
+  let streak = 0;
+  let cursor = todayKey;
+
+  // If today is already completed, count it; otherwise start from yesterday
+  if (logMap.get(todayKey) === true) {
+    streak = 1;
+  }
+  // Walk backwards
+  for (let i = 1; i <= 365; i++) {
+    const d = new Date(cursor);
+    d.setDate(d.getDate() - 1);
+    const key = d.toISOString().slice(0, 10);
+    const completed = logMap.get(key);
+    if (completed === true) {
+      streak += 1;
+      cursor = key;
+    } else {
+      break; // gap found
+    }
+  }
+  return streak;
+}
+
 export async function getOrCreateDayEntry(date: Date): Promise<DayEntry> {
   const dateKey = toDateKey(date);
   const snapshot = await getSnapshot();
@@ -108,6 +149,7 @@ export async function getOrCreateDayEntry(date: Date): Promise<DayEntry> {
     dayReminder: null,
     sleepHours: null,
     sleepScore: null,
+    freeNotes: null,
   };
   await updateSnapshot((s) => ({ ...s, dayEntries: [...s.dayEntries, entry] }));
   return entry;
@@ -126,6 +168,7 @@ export async function updateDayEntry(
     dayReminder: string | null;
     sleepHours: number | null;
     sleepScore: number | null;
+    freeNotes: string | null;
   }>
 ): Promise<void> {
   await updateSnapshot((s) => ({
@@ -212,6 +255,7 @@ export async function createMetricDefinition(data: {
   scale?: 'integer' | 'float';
   minVal?: number;
   maxVal?: number;
+  description?: string | null;
 }): Promise<MetricDefinition> {
   const existing = await getMetricDefinitions();
   const metric: MetricDefinition = {
@@ -221,6 +265,7 @@ export async function createMetricDefinition(data: {
     minVal: data.minVal ?? 1,
     maxVal: data.maxVal ?? 10,
     sortOrder: existing.length,
+    description: data.description ?? null,
   };
   await updateSnapshot((s) => ({ ...s, metricDefinitions: [...s.metricDefinitions, metric] }));
   return metric;
@@ -392,9 +437,9 @@ export async function importAllData(data: {
 }) {
   await replaceSnapshot({
     habits: (data.habits ?? []).map((h) => ({ ...h, deletedAt: h.deletedAt ?? null })),
-    dayEntries: data.dayEntries ?? [],
+    dayEntries: (data.dayEntries ?? []).map((e) => ({ ...e, freeNotes: e.freeNotes ?? null })),
     habitLogs: (data.habitLogs ?? []).map((l) => ({ ...l, note: l.note ?? null })),
-    metricDefinitions: data.metricDefinitions ?? [],
+    metricDefinitions: (data.metricDefinitions ?? []).map((m) => ({ ...m, description: m.description ?? null })),
     metricLogs: data.metricLogs ?? [],
     monthConfig: data.monthConfig ?? [],
     personalSetups: (data.personalSetups ?? []).map((p) => ({ ...p, goalHorizon: p.goalHorizon ?? null, deletedAt: p.deletedAt ?? null })),

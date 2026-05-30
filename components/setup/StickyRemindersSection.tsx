@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { confirmDestructive } from '@/utils/alert';
 
@@ -13,13 +13,22 @@ export function StickyRemindersSection() {
   const [text, setText] = useState('');
   const [topic, setTopic] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const bg = t.dark ? 'rgba(255,240,200,0.04)' : 'rgba(255,250,235,0.6)';
 
   const handleAdd = async () => {
     if (!text.trim()) return;
-    await add(text.trim(), topic.trim() || null, dueDate.trim() || null);
-    setText(''); setTopic(''); setDueDate('');
+    setSaving(true);
+    setAddError(null);
+    const err = await add(text.trim(), topic.trim() || null, dueDate.trim() || null);
+    setSaving(false);
+    if (err) {
+      setAddError(err);
+    } else {
+      setText(''); setTopic(''); setDueDate('');
+    }
   };
 
   return (
@@ -100,10 +109,17 @@ export function StickyRemindersSection() {
             onChangeText={setDueDate}
           />
         </View>
-        <Pressable onPress={handleAdd} style={{ padding: 12, alignItems: 'center', backgroundColor: t.ink.red }}>
-          <Text style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: '600', color: '#FFF' }}>
-            + Pin to Sticky Reminders
+        {addError ? (
+          <Text style={{ fontFamily: FONT_MONO, fontSize: 11, color: t.ink.red, fontWeight: '700' }}>
+            ⚠ {addError}
           </Text>
+        ) : null}
+        <Pressable onPress={handleAdd} disabled={saving} style={{ padding: 12, alignItems: 'center', backgroundColor: saving ? t.faded : t.ink.red }}>
+          {saving
+            ? <ActivityIndicator color="#FFF" size="small" />
+            : <Text style={{ fontFamily: FONT_BODY, fontSize: 14, fontWeight: '600', color: '#FFF' }}>
+                + Pin to Sticky Reminders
+              </Text>}
         </Pressable>
       </View>
     </View>

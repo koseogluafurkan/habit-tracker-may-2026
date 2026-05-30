@@ -36,6 +36,7 @@ export async function seedDefaultMetrics() {
       minVal: m.minVal,
       maxVal: m.maxVal,
       sortOrder: m.sortOrder,
+      description: null,
     })),
   }));
 }

@@ -19,7 +19,7 @@ import { useMetrics } from '@/hooks/useMetrics';
 import { useMonthData } from '@/hooks/useMonthData';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useMorningRevisit } from '@/hooks/useMorningRevisit';
-import { setHabitLogNote } from '@/db/operations';
+import { setHabitLogNote, getHabitStreak } from '@/db/operations';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import {
   FONT_HEADING, FONT_MONO, FONT_BODY,
@@ -162,6 +162,7 @@ function HabitRow({
   value,
   note,
   noteExpanded,
+  streak,
   onToggle,
   onNumericPress,
   onToggleNote,
@@ -173,6 +174,7 @@ function HabitRow({
   value?: string;
   note: string;
   noteExpanded: boolean;
+  streak: number;
   onToggle: () => void;
   onNumericPress: () => void;
   onToggleNote: () => void;
@@ -211,16 +213,23 @@ function HabitRow({
         )}
 
         <View style={{ flex: 1, marginLeft: 14 }}>
-          <Text
-            style={{
-              fontFamily: FONT_BODY,
-              fontSize: t.fs.lead,
-              color: penColor,
-              fontWeight: color === 'black' ? '700' : '500',
-              lineHeight: t.fs.lead * 1.2,
-            }}>
-            {habit.name}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text
+              style={{
+                fontFamily: FONT_BODY,
+                fontSize: t.fs.lead,
+                color: penColor,
+                fontWeight: color === 'black' ? '700' : '500',
+                lineHeight: t.fs.lead * 1.2,
+              }}>
+              {habit.name}
+            </Text>
+            {streak >= 2 ? (
+              <Text style={{ fontFamily: FONT_MONO, fontSize: 11, color: '#E07B00', fontWeight: '700', letterSpacing: 0.5 }}>
+                🔥{streak}
+              </Text>
+            ) : null}
+          </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: penColor }} />
             <Text
@@ -391,6 +400,7 @@ function SleepBlock({
 // ─── Metric row (ledger style) ────────────────────────────────────────────
 function MetricRow({
   name,
+  description,
   value,
   min,
   max,
@@ -400,6 +410,7 @@ function MetricRow({
   isLast,
 }: {
   name: string;
+  description?: string | null;
   value: string;
   min: number;
   max: number;
@@ -420,10 +431,17 @@ function MetricRow({
           paddingVertical: t.sp.xs,
         },
       ]}>
-      <View style={{ width: 6, height: 16, backgroundColor: accentColor, opacity: 0.85, flexShrink: 0 }} />
-      <Text style={{ flex: 1, fontFamily: FONT_BODY, fontSize: 15, color: t.ink.black, marginLeft: 10 }}>
-        {name}
-      </Text>
+      <View style={{ width: 6, height: description ? 36 : 16, backgroundColor: accentColor, opacity: 0.85, flexShrink: 0 }} />
+      <View style={{ flex: 1, marginLeft: 10 }}>
+        <Text style={{ fontFamily: FONT_BODY, fontSize: 15, color: t.ink.black }}>
+          {name}
+        </Text>
+        {description ? (
+          <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 11, color: t.faded, marginTop: 1, lineHeight: 15 }}>
+            {description}
+          </Text>
+        ) : null}
+      </View>
       <TextInput
         style={[styles.metricInput, { fontFamily: FONT_HEADING, fontSize: 22, color: t.ink.black }]}
         keyboardType="decimal-pad"
@@ -463,7 +481,7 @@ export function DayJournalView() {
   const { refresh } = useDatabase();
   const {
     entry, habitLogs, metricLogs, loading,
-    saveMemorableMoment, saveDayReminder, saveSleep,
+    saveMemorableMoment, saveDayReminder, saveSleep, saveFreeNotes,
     toggleHabit, setNumericHabit, setMetric,
   } = useDayEntry(selectedDate);
 
@@ -475,6 +493,7 @@ export function DayJournalView() {
   const [sleepHours,  setSleepHours]  = useState('');
   const [sleepScore,  setSleepScore]  = useState('');
   const [metricVals,  setMetricVals]  = useState<Record<string, string>>({});
+  const [freeNotes,   setFreeNotes]   = useState('');
   const [numericModal, setNumericModal] = useState<{ habit: Habit; value: string } | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarNote, setCalendarNote] = useState<string | null>(null);
@@ -489,6 +508,7 @@ export function DayJournalView() {
     setReminder(entry?.dayReminder ?? '');
     setSleepHours(entry?.sleepHours != null ? String(entry.sleepHours) : '');
     setSleepScore(entry?.sleepScore != null ? String(entry.sleepScore) : '');
+    setFreeNotes(entry?.freeNotes ?? '');
   }, [entry, selectedDate]);
 
   // Fetch tomorrow's reminder (for the "Tomorrow's reminder" field on TODAY).
@@ -517,6 +537,23 @@ export function DayJournalView() {
   const getHabitValue = (id: string) => habitLogs.find((l) => l.habitId === id)?.value;
   const getHabitNote  = (id: string) => habitLogs.find((l) => l.habitId === id)?.note ?? '';
   const isHabitChecked = (id: string) => getHabitValue(id) === 'true';
+
+  // Streak map: habitId → streak count (computed async)
+  const [streaks, setStreaks] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const map: Record<string, number> = {};
+      for (const h of habits) {
+        if (h.type === 'boolean') {
+          map[h.id] = await getHabitStreak(h.id, selectedDateKey);
+        }
+      }
+      if (!cancelled) setStreaks(map);
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDateKey, habitLogs.length]);
 
   const handleSaveHabitNote = async (habitId: string, text: string) => {
     const ops = await import('@/db/operations');
@@ -787,6 +824,7 @@ export function DayJournalView() {
                         value={getHabitValue(habit.id)}
                         note={getHabitNote(habit.id)}
                         noteExpanded={expandedNoteHabitId === habit.id}
+                        streak={streaks[habit.id] ?? 0}
                         onToggle={() => toggleHabit(habit.id, getHabitValue(habit.id))}
                         onNumericPress={() =>
                           setNumericModal({ habit, value: getHabitValue(habit.id) ?? '' })
@@ -829,6 +867,7 @@ export function DayJournalView() {
                     <MetricRow
                       key={metric.id}
                       name={metric.name}
+                      description={metric.description}
                       value={metricVals[metric.id] ?? ''}
                       min={metric.minVal}
                       max={metric.maxVal}
@@ -874,6 +913,36 @@ export function DayJournalView() {
               ) : null}
             </View>
           ) : null}
+        </View>
+
+        {/* ── VI · Free Notes — unstructured writing space ── */}
+        <View style={{ marginTop: t.sp.xl }}>
+          <SectionHeader
+            eyebrow="VI · Free Notes"
+            title="Thoughts & reflections"
+          />
+          <TextInput
+            style={[{
+              borderWidth: 1,
+              borderLeftWidth: 3,
+              borderColor: t.rule,
+              borderLeftColor: t.faded,
+              padding: 14,
+              minHeight: 140,
+              fontSize: 15,
+              lineHeight: 24,
+              textAlignVertical: 'top',
+              color: t.ink.black,
+              fontFamily: FONT_BODY,
+              backgroundColor: t.dark ? 'rgba(255,240,200,0.04)' : 'rgba(255,250,235,0.6)',
+            }]}
+            multiline
+            placeholder="Serbest alan — düşünceler, duygu, not…"
+            placeholderTextColor={t.faded}
+            value={freeNotes}
+            onChangeText={setFreeNotes}
+            onBlur={() => saveFreeNotes(freeNotes)}
+          />
         </View>
 
         {/* ── Hyper-focus banner ── high contrast in dark mode */}
