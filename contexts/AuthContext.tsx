@@ -1,32 +1,37 @@
 /**
  * AuthContext — Supabase Magic Link authentication.
  *
- * Strategy:
- *  - Session stored in Supabase's own storage (localStorage on web).
- *  - On app open: try to restore existing session → no re-login needed.
- *  - Session lasts 1 week by default; refreshed silently in the background.
- *  - Magic link sent to user's email; user clicks → handled by the OTP screen.
- *  - After first login on a device, the user is not prompted again until the
- *    session expires (typically weeks/months).
+ * Flow:
+ *  1. User enters email → sendMagicLink() fires signInWithOtp
+ *  2. Supabase sends an email with a clickable link
+ *  3. User clicks link → browser opens the app URL with #access_token in hash
+ *  4. Supabase JS SDK picks up the hash and fires onAuthStateChange → logged in
+ *  5. Session saved in localStorage → silent restore on next open (weeks/months)
  *
- * Single-user: auth.uid() is locked to RLS policies so data is private.
+ * The emailRedirectTo must match the Site URL set in Supabase dashboard.
+ * Also requires the URL to be listed in Auth → URL Configuration → Redirect URLs.
  */
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 
 import { supabase } from '@/db/supabase';
 
+// Production URL — must match Supabase Auth → URL Configuration → Site URL
+const APP_URL =
+  typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? `${window.location.protocol}//${window.location.host}`
+    : 'https://project-0clek.vercel.app';
+
 type AuthState =
   | { status: 'loading' }
   | { status: 'unauthenticated' }
+  | { status: 'awaiting_link' }                               // email sent, waiting for click
   | { status: 'authenticated'; user: User; session: Session };
 
 type AuthContextValue = {
   state: AuthState;
-  /** Send a magic link to the given email. Returns an error string or null. */
   sendMagicLink: (email: string) => Promise<string | null>;
-  /** Verify a 6-digit OTP that arrived by email. Returns an error string or null. */
-  verifyOtp: (email: string, token: string) => Promise<string | null>;
+  resetToEmail: () => void;
   signOut: () => Promise<void>;
 };
 
@@ -35,9 +40,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
 
-  // Restore session on mount and listen for auth changes
   useEffect(() => {
-    // getSession resolves synchronously from localStorage when available
+    // Try to restore existing session from localStorage
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setState({ status: 'authenticated', user: session.user, session });
@@ -46,10 +50,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // Listen for auth events (including magic link hash resolution)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setState({ status: 'authenticated', user: session.user, session });
-      } else {
+      } else if (_event === 'SIGNED_OUT') {
         setState({ status: 'unauthenticated' });
       }
     });
@@ -61,20 +66,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {
-        // Don't use a redirect URL — we handle OTP entry in-app.
         shouldCreateUser: true,
+        // This is where Supabase redirects after the user clicks the link.
+        // Must also be listed in Supabase Auth → URL Configuration → Redirect URLs.
+        emailRedirectTo: APP_URL,
       },
     });
+    if (!error) setState({ status: 'awaiting_link' });
     return error?.message ?? null;
   }, []);
 
-  const verifyOtp = useCallback(async (email: string, token: string): Promise<string | null> => {
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim().toLowerCase(),
-      token: token.trim(),
-      type: 'email',
-    });
-    return error?.message ?? null;
+  const resetToEmail = useCallback(() => {
+    setState({ status: 'unauthenticated' });
   }, []);
 
   const signOut = useCallback(async () => {
@@ -82,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ state, sendMagicLink, verifyOtp, signOut }}>
+    <AuthContext.Provider value={{ state, sendMagicLink, resetToEmail, signOut }}>
       {children}
     </AuthContext.Provider>
   );
