@@ -83,7 +83,9 @@ function AuthGate() {
     );
   }
 
-  if (state.status === 'unauthenticated') {
+  // Anything that isn't an active authenticated session shows the login flow.
+  // (LoginScreen renders the waitlist message for the 'waitlisted' status.)
+  if (state.status !== 'authenticated') {
     return (
       <View style={{ flex: 1, maxWidth: contentMaxWidth, width: '100%', alignSelf: 'center' }}>
         <LoginScreen />

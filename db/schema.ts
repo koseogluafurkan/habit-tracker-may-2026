@@ -77,6 +77,7 @@ export type PersonalSetup = {
   targetDate: string | null;     // optional, for yearly-goal
   status: PersonalSetupStatus;
   goalHorizon: GoalHorizon | null;
+  deletedAt: string | null;      // soft-delete: first day INACTIVE ('YYYY-MM-DD'); null = active
 };
 
 // ── Sticky Reminders (always visible until dismissed) ─────────────────────

@@ -306,7 +306,11 @@ export async function upsertMonthConfig(
 // ─── PersonalSetup CRUD (Sprint 1: My Foundation) ─────────────────────────
 export async function getPersonalSetups(type?: PersonalSetupType): Promise<PersonalSetup[]> {
   const snapshot = await getSnapshot();
-  const all = [...snapshot.personalSetups].sort((a, b) => a.sortOrder - b.sortOrder);
+  // Exclude soft-deleted items (deletedAt set means removed from today forward).
+  // The row is kept in the snapshot/export as history, just hidden from the UI.
+  const all = [...snapshot.personalSetups]
+    .filter((p) => p.deletedAt === null || p.deletedAt === undefined)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   return type ? all.filter((p) => p.type === type) : all;
 }
 
@@ -325,6 +329,7 @@ export async function addPersonalSetup(
     targetDate: opts.targetDate ?? null,
     status: 'active',
     goalHorizon: opts.goalHorizon ?? null,
+    deletedAt: null,
   };
   await updateSnapshot((s) => ({ ...s, personalSetups: [...s.personalSetups, setup] }));
   return setup;
@@ -340,10 +345,17 @@ export async function updatePersonalSetup(
   }));
 }
 
+/**
+ * Soft-delete a foundation item (anti-goal / limiting-belief / yearly-goal).
+ * Sets deletedAt = today so it disappears from today forward while the row
+ * (and any historical reference) is preserved for export/history.
+ */
 export async function deletePersonalSetup(id: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
   await updateSnapshot((s) => ({
     ...s,
-    personalSetups: s.personalSetups.filter((p) => p.id !== id),
+    personalSetups: s.personalSetups.map((p) =>
+      p.id === id ? { ...p, deletedAt: today } : p),
   }));
 }
 
@@ -385,7 +397,7 @@ export async function importAllData(data: {
     metricDefinitions: data.metricDefinitions ?? [],
     metricLogs: data.metricLogs ?? [],
     monthConfig: data.monthConfig ?? [],
-    personalSetups: (data.personalSetups ?? []).map((p) => ({ ...p, goalHorizon: p.goalHorizon ?? null })),
+    personalSetups: (data.personalSetups ?? []).map((p) => ({ ...p, goalHorizon: p.goalHorizon ?? null, deletedAt: p.deletedAt ?? null })),
     stickyReminders: data.stickyReminders ?? [],
     countdowns: data.countdowns ?? [],
     userSettings: data.userSettings ?? [],

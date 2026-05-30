@@ -41,7 +41,7 @@ export function LoginScreen() {
   const [error, setError]     = useState<string | null>(null);
 
   const bg = t.dark ? 'rgba(255,240,200,0.04)' : 'rgba(255,250,235,0.6)';
-  const awaiting = state.status === 'awaiting_link';
+  const waitlisted = state.status === 'waitlisted';
 
   const handleSignIn = async () => {
     const trimmed = input.trim();
@@ -50,8 +50,8 @@ export function LoginScreen() {
     setError(null);
     try {
       const err = await signIn(trimmed);
-      // On success: state → 'authenticated' (password) or 'awaiting_link' (magic link)
-      if (err) setError(`Giriş başarısız: ${err}`);
+      // On success: state → 'authenticated' (whitelisted) or 'waitlisted' (not whitelisted)
+      if (err) setError(err);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -87,7 +87,7 @@ export function LoginScreen() {
 
           <DoubleRule marginTop={24} color={t.ink.black} />
 
-          {!awaiting ? (
+          {!waitlisted ? (
             /* ── Enter email or shortcut ── */
             <View style={{ marginTop: 32, gap: 14 }}>
               <Text style={{
@@ -137,46 +137,34 @@ export function LoginScreen() {
               </Pressable>
             </View>
           ) : (
-            /* ── Awaiting magic link click ── */
+            /* ── Not whitelisted → waitlist message ── */
             <View style={{ marginTop: 32, gap: 16 }}>
               <View style={{
                 padding: 20, borderWidth: 2, borderLeftWidth: 5,
-                borderColor: t.ink.blue, borderLeftColor: t.ink.blue,
-                backgroundColor: t.dark ? 'rgba(30,58,138,0.22)' : 'rgba(30,58,138,0.08)',
+                borderColor: t.accent, borderLeftColor: t.accent,
+                backgroundColor: t.dark ? 'rgba(117,88,47,0.22)' : 'rgba(117,88,47,0.08)',
               }}>
                 <Text style={{
                   fontFamily: FONT_MONO, fontSize: 10, letterSpacing: 2, fontWeight: '700',
-                  color: t.dark ? t.paperHi : t.ink.blue, marginBottom: 8,
+                  color: t.dark ? t.paperHi : t.accent, marginBottom: 8,
                 }}>
-                  ✉ CHECK YOUR EMAIL
+                  ⏳ BEKLEME LİSTESİ
                 </Text>
                 <Text style={{ fontFamily: FONT_HEADING, fontSize: 22, fontWeight: '700', color: t.ink.black, lineHeight: 28 }}>
-                  Link sent to{'\n'}
-                  <Text style={{ color: t.accent }}>{input}</Text>
+                  Bekleme listesine{'\n'}eklendiniz.
                 </Text>
                 <Text style={{ fontFamily: FONT_BODY, fontSize: 14, color: t.faded, marginTop: 10, lineHeight: 22 }}>
-                  Tap the button in the email to open the journal.
-                  This page will update automatically when you click the link.
+                  <Text style={{ color: t.accent, fontWeight: '700' }}>
+                    {state.status === 'waitlisted' ? state.email : input}
+                  </Text>
+                  {' '}için erişim talebiniz uygulama sahibine iletildi.
+                  Onaylandığında bu adresle giriş yapabileceksiniz.
                 </Text>
               </View>
 
-              {['1. Open the Supabase email', '2. Tap the blue login button', '3. App opens and signs you in'].map((s) => (
-                <Text key={s} style={{ fontFamily: FONT_MONO, fontSize: 11, color: t.ink.black, letterSpacing: 0.5 }}>
-                  {s}
-                </Text>
-              ))}
-
-              <Pressable
-                onPress={handleSignIn}
-                style={[styles.outlineBtn, { borderColor: t.rule }]}>
-                {loading
-                  ? <ActivityIndicator color={t.accent} size="small" />
-                  : <Text style={{ fontFamily: FONT_BODY, fontSize: 14, color: t.faded }}>Resend link</Text>}
-              </Pressable>
-
-              <Pressable onPress={() => { setError(null); resetToEmail(); }}>
+              <Pressable onPress={() => { setError(null); setInput(''); resetToEmail(); }}>
                 <Text style={{ fontFamily: FONT_BODY, fontStyle: 'italic', fontSize: 13, color: t.faded, textAlign: 'center' }}>
-                  ← Use a different address
+                  ← Başka bir adres dene
                 </Text>
               </Pressable>
             </View>

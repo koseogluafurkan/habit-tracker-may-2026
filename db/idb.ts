@@ -101,10 +101,10 @@ function monthConfigToRow(c: MonthConfig): any {
 }
 
 function personalSetupFromRow(r: any): PersonalSetup {
-  return { id: r.id, type: r.type, text: r.text, sortOrder: r.sort_order ?? 0, createdAt: r.created_at ?? new Date().toISOString(), targetDate: r.target_date, status: r.status ?? 'active', goalHorizon: r.goal_horizon ?? null };
+  return { id: r.id, type: r.type, text: r.text, sortOrder: r.sort_order ?? 0, createdAt: r.created_at ?? new Date().toISOString(), targetDate: r.target_date, status: r.status ?? 'active', goalHorizon: r.goal_horizon ?? null, deletedAt: r.deleted_at ?? null };
 }
 function personalSetupToRow(p: PersonalSetup): any {
-  return { id: p.id, type: p.type, text: p.text, sort_order: p.sortOrder, target_date: p.targetDate, status: p.status, goal_horizon: p.goalHorizon };
+  return { id: p.id, type: p.type, text: p.text, sort_order: p.sortOrder, target_date: p.targetDate, status: p.status, goal_horizon: p.goalHorizon, deleted_at: p.deletedAt ?? null };
 }
 
 function stickyReminderFromRow(r: any): StickyReminder {
