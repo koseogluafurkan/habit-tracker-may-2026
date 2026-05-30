@@ -1,50 +1,31 @@
 /**
- * AuthContext — authentication with two paths:
+ * AuthContext — authentication
  *
- * FAST PATH (no email, instant):
- *   - User types "demo2026" → signInWithPassword using owner credentials
- *   - User types the owner email → same password flow
- *   → No rate limits, no email needed, works every time.
+ * Strategy: "try password first, fall through to magic link"
  *
- * SLOW PATH (magic link, for unfamiliar devices):
- *   - Any other email → signInWithOtp → email with link
- *   → Falls back gracefully if rate-limited.
+ * 1. User types "demo2026" → use owner email + that password → instant sign-in
+ * 2. User types ANY email  → try signInWithPassword with BYPASS_PASS first
+ *    - If it works (owner account): signed in instantly, no email sent
+ *    - If it fails:  send magic link to that email
  *
- * Sessions persist in localStorage → silent restore on next open.
+ * This removes ALL string-comparison logic. The bypass is implicit:
+ * whoever has the right password gets in; everyone else gets a magic link.
  */
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 
 import { supabase } from '@/db/supabase';
 
-// ─── Bypass config ──────────────────────────────────────────────────────────
-// Any input in this list → password auth (instant, no email, no rate limit).
 const OWNER_EMAIL = 'koseoglu.afurkan@icloud.com';
-const BYPASS_PASS = 'demo2026';
+const BYPASS_PASS = 'demo2026';   // set via SQL: crypt('demo2026', gen_salt('bf'))
 
-// All strings that trigger the password bypass (compared case-insensitively,
-// all whitespace stripped — handles iOS autocapitalize / autocomplete weirdness).
-const BYPASS_INPUTS: string[] = [
-  'demo2026',
-  OWNER_EMAIL,
-];
-
-function normalise(s: string): string {
-  return s.replace(/\s/g, '').toLowerCase();
-}
-
-function isBypass(input: string): boolean {
-  const n = normalise(input);
-  return BYPASS_INPUTS.some((b) => normalise(b) === n);
-}
-
-// Production redirect URL (used for magic-link path only)
+// Where Supabase redirects after user clicks a magic link in email.
+// Must be whitelisted in: Supabase → Auth → URL Configuration → Redirect URLs
 const APP_URL =
   typeof window !== 'undefined' && window.location.hostname !== 'localhost'
     ? `${window.location.protocol}//${window.location.host}`
     : 'https://project-0clek.vercel.app';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
 type AuthState =
   | { status: 'loading' }
   | { status: 'unauthenticated' }
@@ -53,7 +34,6 @@ type AuthState =
 
 type AuthContextValue = {
   state: AuthState;
-  /** Try to sign in. Returns an error string or null on success. */
   signIn: (input: string) => Promise<string | null>;
   resetToEmail: () => void;
   signOut: () => Promise<void>;
@@ -61,7 +41,6 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// ─── Provider ───────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
 
@@ -84,36 +63,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (input: string): Promise<string | null> => {
-    // ── Fast path: password auth (instant, no email, no rate limit) ──
-    if (isBypass(input)) {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email:    OWNER_EMAIL,
-        password: BYPASS_PASS,
-      });
-      if (error) {
-        console.error('[Auth] signInWithPassword failed:', error.message, error.status);
-        return error.message;
-      }
-      // onAuthStateChange will fire SIGNED_IN and flip state to 'authenticated'
-      console.log('[Auth] signInWithPassword success, user:', data.user?.email);
+    const raw = input.trim();
+    if (!raw) return 'Boş bırakmayın.';
+
+    // "demo2026" → owner email + password (no email sent)
+    const isDemoCode = raw.toLowerCase() === 'demo2026';
+    const emailToUse = isDemoCode ? OWNER_EMAIL : raw.toLowerCase();
+
+    // ── Step 1: try password auth (instant, no email, no rate limit) ──
+    const { error: pwErr } = await supabase.auth.signInWithPassword({
+      email: emailToUse,
+      password: BYPASS_PASS,
+    });
+
+    if (!pwErr) {
+      // onAuthStateChange will flip state to 'authenticated'
       return null;
     }
 
-    // ── Slow path: magic link sent to the provided email ──
-    const { error } = await supabase.auth.signInWithOtp({
-      email: input.trim().toLowerCase(),
+    // If the user typed "demo2026" and password failed, it's a Supabase error.
+    if (isDemoCode) {
+      console.error('[Auth] demo bypass failed:', pwErr.message);
+      return `Giriş başarısız: ${pwErr.message}`;
+    }
+
+    // ── Step 2: password didn't work → send magic link ──
+    const { error: otpErr } = await supabase.auth.signInWithOtp({
+      email: emailToUse,
       options: {
-        shouldCreateUser: true,
+        shouldCreateUser: false,   // don't create new users — this is single-user
         emailRedirectTo: APP_URL,
       },
     });
-    if (!error) setState({ status: 'awaiting_link' });
-    return error?.message ?? null;
+
+    if (!otpErr) {
+      setState({ status: 'awaiting_link' });
+      return null;
+    }
+
+    return `Magic link gönderilemedi: ${otpErr.message}`;
   }, []);
 
-  const resetToEmail = useCallback(() => {
-    setState({ status: 'unauthenticated' });
-  }, []);
+  const resetToEmail = useCallback(() => setState({ status: 'unauthenticated' }), []);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
@@ -126,7 +117,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Hooks ───────────────────────────────────────────────────────────────────
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
